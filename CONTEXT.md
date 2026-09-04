@@ -169,3 +169,20 @@ Since Yardle deals with unlimited theoretical stock (anyone can list), tradition
 ## 10. Name Disclaimer
 **Yardle** is a working title derived from "Yard Sale." 
 *Pre-MVP Check Required:* The team must verify trademark availability and ensure the name does not inadvertently carry offensive connotations in any primary target language (currently assumed to be English-focused).
+
+---
+
+## 11. Buyer Intent, Cart, and Need Windows (2026-09-05)
+
+Yardle has two buyer-intent paths. Both require a buyer to state a per-item maximum price, which is assessed against the current MMA snapshot; the buyer's expressed price is the buyout ceiling used for automated matching.
+
+1. **I Want (cart-based intent):** Buyers may place one or more seller listings in a cart without committing to purchase. In the cart they can adjust quantities where applicable, remove listings, select only the lines to action now, and use a prominent checkout confirmation action. A secondary confirmation modal displays the MMA snapshot for each selected listing and requires the buyer to enter their offered price per listing. It shows the selected item count and total amount the buyer is willing to commit before submission.
+2. **I Need (immediate demand listing):** Buyers may immediately create a priced demand listing without using the cart. The same MMA-snapshot and buyer price-input confirmation applies.
+
+Every submitted buyer intent creates a **Need Window** valid for 90 days. It permits competing buyer demand for the same item. When a seller's automated listing price is at or below an eligible buyer's stated buyout price (and meets the MMA rule), the system automatically selects the buyer whose Need Window has the least remaining lifetime (closest to expiry). If tied, the earlier buyer-intent timestamp wins. Human input is limited to cart management and stating the buyer's price point; matching, transaction initiation, and settlement proceed automatically through the Guardian workflow.
+
+---
+
+## 12. MVP Build Decision (2026-09-05)
+
+The prototype will start as a Vite + React + TypeScript application. It will build the marketplace, I Want cart, I Need intent form, MMA visibility, Guardian decision experience, and simulated escrow lifecycle first. XRPL actions will be isolated behind a payment-provider boundary so an `xrpl.js` XRPL Testnet implementation can replace the simulator without rewriting product flows. A real Testnet escrow lifecycle remains required for the final hackathon demo. `rippled` node/validator operation is not MVP scope. Required XRPL AI Starter Kit and x402/MPP integrations will be added once the official challenge resources are available.
