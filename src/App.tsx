@@ -2,89 +2,53 @@ import { useMemo, useState } from "react"
 import { listings, type Listing } from "./data"
 
 type IntentMode = "want" | "need"
+type Page = "market" | "cart" | "activity" | "sell"
+type IntentStatus = "searching" | "matched" | "escrow" | "complete"
+type BuyerIntent = { id: string; title: string; offer: number; mma: number; emoji: string; expiresAt: string; status: IntentStatus; source: IntentMode; matchTitle?: string }
+type SellerListing = Listing & { status: "live" | "matched" | "escrow" | "sold"; buyer?: string }
 
 const money = (amount: number) => `$${amount.toLocaleString()}`
+const statusText: Record<IntentStatus, string> = { searching: "Searching for an eligible match", matched: "Eligible match found — awaiting escrow", escrow: "XRPL escrow funded", complete: "Item received — transaction complete" }
 
 export default function App() {
+  const [page, setPage] = useState<Page>("market")
   const [cart, setCart] = useState<Listing[]>([])
   const [selected, setSelected] = useState<string[]>([])
   const [mode, setMode] = useState<IntentMode | null>(null)
-  const [submitted, setSubmitted] = useState(false)
+  const [intents, setIntents] = useState<BuyerIntent[]>([])
+  const [sellerListings, setSellerListings] = useState<SellerListing[]>([])
+  const total = useMemo(() => cart.filter((x) => selected.includes(x.id)).reduce((sum, x) => sum + x.price, 0), [cart, selected])
+  const allListings = [...listings, ...sellerListings]
 
-  const cartTotal = useMemo(
-    () => cart.filter((item) => selected.includes(item.id)).reduce((sum, item) => sum + item.price, 0),
-    [cart, selected],
-  )
-
-  function addToCart(item: Listing) {
-    if (cart.some((cartItem) => cartItem.id === item.id)) return
-    setCart([...cart, item])
-    setSelected([...selected, item.id])
+  const add = (item: Listing) => { if (!cart.some((x) => x.id === item.id)) { setCart([...cart, item]); setSelected([...selected, item.id]) } }
+  const remove = (id: string) => { setCart(cart.filter((x) => x.id !== id)); setSelected(selected.filter((x) => x !== id)) }
+  function submit(items: Array<{ title: string; offer: number; mma: number; emoji: string }>, source: IntentMode) {
+    const expiry = new Date(); expiry.setDate(expiry.getDate() + 90)
+    setIntents((current) => [...items.map((x, i) => ({ ...x, id: `${Date.now()}-${i}`, expiresAt: expiry.toLocaleDateString(undefined, { month: "short", day: "numeric" }), status: "searching" as IntentStatus, source })), ...current])
+    setMode(null); setCart([]); setSelected([]); setPage("activity")
   }
-
-  function removeFromCart(id: string) {
-    setCart(cart.filter((item) => item.id !== id))
-    setSelected(selected.filter((selectedId) => selectedId !== id))
+  function create(item: Omit<SellerListing, "id" | "status" | "seller">) {
+    const match = intents.find((x) => item.price >= item.mma * .7 && item.price <= x.offer && x.title.toLowerCase().includes(item.title.toLowerCase().split(" ")[0]))
+    const listing: SellerListing = { ...item, id: `seller-${Date.now()}`, seller: "You", status: match ? "matched" : "live", buyer: match ? "Eligible Yardle buyer" : undefined }
+    setSellerListings((current) => [listing, ...current])
+    if (match) setIntents((current) => current.map((x) => x.id === match.id ? { ...x, status: "matched", matchTitle: item.title } : x))
   }
+  function fund(id: string) { const sale = sellerListings.find((x) => x.id === id); setSellerListings((current) => current.map((x) => x.id === id ? { ...x, status: "escrow" } : x)); if (sale?.buyer) setIntents((current) => current.map((x) => x.matchTitle === sale.title ? { ...x, status: "escrow" } : x)) }
+  function received(id: string) { setIntents((current) => current.map((x) => x.id === id ? { ...x, status: "complete" } : x)); setSellerListings((current) => current.map((x) => x.status === "escrow" ? { ...x, status: "sold" } : x)) }
 
-  function toggleSelected(id: string) {
-    setSelected(selected.includes(id) ? selected.filter((value) => value !== id) : [...selected, id])
-  }
-
-  return (
-    <main>
-      <nav>
-        <a className="brand" href="#top"><span>◒</span> yardle</a>
-        <div className="nav-links"><a href="#market">Marketplace</a><a href="#how">How it works</a><button className="cart-button" onClick={() => document.getElementById("cart")?.scrollIntoView()}>Cart <b>{cart.length}</b></button></div>
-      </nav>
-
-      <section className="hero" id="top">
-        <div>
-          <p className="eyebrow">AI-GUARDED RESALE</p>
-          <h1>The fair way to find what you’re after.</h1>
-          <p className="lead">Yardle’s Guardian detects underpricing, bot sniping and market manipulation before an item changes hands.</p>
-          <div className="actions"><a className="primary" href="#market">Browse listings</a><button className="secondary" onClick={() => setMode("need")}>I need something</button></div>
-        </div>
-        <aside className="guardian-card">
-          <div className="status"><span /> Guardian online</div>
-          <h2>Market pulse</h2>
-          <p>Every offer is checked against a fresh Market Moving Average before it can settle.</p>
-          <div className="pulse"><span>Safe listings</span><b>98.4%</b></div>
-          <div className="pulse"><span>Median review time</span><b>&lt; 500ms</b></div>
-        </aside>
-      </section>
-
-      <section className="market" id="market">
-        <div className="section-head"><div><p className="eyebrow">CURATED FOR YOU</p><h2>Available now</h2></div><button className="secondary" onClick={() => setMode("need")}>+ Create an I Need</button></div>
-        <div className="listing-grid">
-          {listings.map((item) => {
-            const safe = item.price >= item.mma * 0.7
-            return <article className="listing" key={item.id}>
-              <div className="image" aria-hidden="true">{item.emoji}<span className="risk">{safe ? "● Guardian cleared" : "● Needs review"}</span></div>
-              <div className="listing-body"><p>{item.category} · {item.condition}</p><h3>{item.title}</h3><div className="price-row"><strong>{money(item.price)}</strong><span>MMA {money(item.mma)}</span></div><small>Sold by {item.seller}</small><button onClick={() => addToCart(item)} disabled={cart.some((cartItem) => cartItem.id === item.id)}>{cart.some((cartItem) => cartItem.id === item.id) ? "In your cart" : "I want this"}</button></div>
-            </article>
-          })}
-        </div>
-      </section>
-
-      <section className="cart-panel" id="cart">
-        <div><p className="eyebrow">YOUR INTENT</p><h2>Cart</h2><p className="muted">Choose listings to price and submit. A cart is not a purchase.</p></div>
-        {cart.length === 0 ? <div className="empty">Your cart is clear. Add an item above, or create an <button onClick={() => setMode("need")}>I Need</button>.</div> : <div className="cart-lines">{cart.map((item) => <label className="cart-line" key={item.id}><input type="checkbox" checked={selected.includes(item.id)} onChange={() => toggleSelected(item.id)} /><span>{item.emoji}</span><div><b>{item.title}</b><small>MMA snapshot: {money(item.mma)}</small></div><strong>{money(item.price)}</strong><button onClick={() => removeFromCart(item.id)} aria-label={`Remove ${item.title}`}>×</button></label>)}<div className="checkout"><div><span>{selected.length} item{selected.length === 1 ? "" : "s"} selected</span><b>Listing total {money(cartTotal)}</b></div><button className="primary" disabled={!selected.length} onClick={() => setMode("want")}>Review & price offers →</button></div></div>}
-      </section>
-
-      <section className="how" id="how"><p className="eyebrow">HOW YARDLE ALLOCATES FAIRLY</p><div className="steps"><div><b>01</b><h3>You state your ceiling</h3><p>Use I Want or I Need. You always see the MMA snapshot first.</p></div><div><b>02</b><h3>Guardian evaluates</h3><p>Price, velocity and transaction history are screened in real time.</p></div><div><b>03</b><h3>XRPL escrow settles</h3><p>The eligible buyer nearest to Need Window expiry wins, then escrow protects both parties.</p></div></div></section>
-
-      {mode && <IntentModal mode={mode} items={mode === "want" ? cart.filter((item) => selected.includes(item.id)) : []} onClose={() => setMode(null)} onSubmit={() => { setSubmitted(true); setMode(null); setCart([]); setSelected([]) }} />}
-      {submitted && <div className="toast">Intent submitted. Guardian is watching for an eligible match. <button onClick={() => setSubmitted(false)}>×</button></div>}
-    </main>
-  )
+  return <main>
+    <nav><button className="brand" onClick={() => setPage("market")}><span>●</span> yardle</button><div className="nav-links"><button onClick={() => setPage("market")}>Marketplace</button><button onClick={() => setPage("sell")}>Sell an item</button><button onClick={() => setPage("activity")}>My activity {intents.length > 0 && <b>{intents.length}</b>}</button><button className="cart-button" onClick={() => setPage("cart")}>Cart <b>{cart.length}</b></button></div></nav>
+    {page === "market" && <><section className="hero"><div><p className="eyebrow">AI-GUARDED RESALE</p><h1>The fair way to find what you’re after.</h1><p className="lead">Yardle’s Guardian detects underpricing, bot sniping and market manipulation before an item changes hands.</p><div className="actions"><button className="primary" onClick={() => document.getElementById("market")?.scrollIntoView()}>Browse listings</button><button className="secondary" onClick={() => setMode("need")}>I need something</button></div></div><aside className="guardian-card"><div className="status"><span /> Guardian online</div><h2>Market pulse</h2><p>Every offer is checked against a fresh Market Moving Average before it can settle.</p><div className="pulse"><span>Safe listings</span><b>98.4%</b></div><div className="pulse"><span>Median review time</span><b>&lt; 500ms</b></div></aside></section><section className="market" id="market"><div className="section-head"><div><p className="eyebrow">CURATED FOR YOU</p><h2>Available now</h2></div><button className="secondary" onClick={() => setMode("need")}>+ Create an I Need</button></div><div className="listing-grid">{allListings.filter((x) => !("status" in x) || x.status === "live").map((x) => <ListingCard item={x} inCart={cart.some((c) => c.id === x.id)} onAdd={() => add(x)} key={x.id} />)}</div></section><How /></>}
+    {page === "cart" && <Cart cart={cart} selected={selected} total={total} remove={remove} toggle={(id) => setSelected(selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id])} checkout={() => setMode("want")} browse={() => setPage("market")} />}
+    {page === "activity" && <Activity intents={intents} browse={() => setPage("market")} received={received} />}
+    {page === "sell" && <Sell listings={sellerListings} create={create} fund={fund} />}
+    {mode && <IntentModal mode={mode} items={mode === "want" ? cart.filter((x) => selected.includes(x.id)) : []} close={() => setMode(null)} submit={submit} />}
+  </main>
 }
 
-function IntentModal({ mode, items, onClose, onSubmit }: { mode: IntentMode; items: Listing[]; onClose: () => void; onSubmit: () => void }) {
-  const [needName, setNeedName] = useState("")
-  const [needPrice, setNeedPrice] = useState(0)
-  const [offers, setOffers] = useState<Record<string, number>>(() => Object.fromEntries(items.map((item) => [item.id, item.price])))
-  const total = mode === "want" ? Object.values(offers).reduce((sum, price) => sum + price, 0) : needPrice
-  const rows = mode === "want" ? items : [{ id: "need", title: needName || "Your requested item", mma: 0, emoji: "⌕" }]
-  return <div className="backdrop" role="dialog" aria-modal="true"><section className="modal"><button className="close" onClick={onClose}>×</button><p className="eyebrow">{mode === "want" ? "CONFIRM YOUR INTENT" : "CREATE AN I NEED"}</p><h2>{mode === "want" ? "Set your maximum prices" : "Tell Yardle what you need"}</h2><p className="muted">Your price is a buyout ceiling, not an immediate charge. Guardian will match only safe, eligible listings.</p>{mode === "need" && <label className="field">What are you looking for?<input autoFocus value={needName} onChange={(event) => setNeedName(event.target.value)} placeholder="e.g. iPad Pro 11-inch" /></label>}<div className="offer-lines">{rows.map((item) => <div className="offer-line" key={item.id}><span>{item.emoji}</span><div><b>{item.title}</b><small>{mode === "want" ? `MMA snapshot: ${money(item.mma)}` : "MMA snapshot will be calculated on submission"}</small></div><label>Maximum price<input type="number" min="0" value={mode === "want" ? offers[item.id] : needPrice || ""} onChange={(event) => mode === "want" ? setOffers({ ...offers, [item.id]: Number(event.target.value) }) : setNeedPrice(Number(event.target.value))} /></label></div>)}</div><div className="intent-total"><span>{rows.length} buyer intent{rows.length === 1 ? "" : "s"} · Need Window: 90 days</span><b>Maximum total: {money(total)}</b></div><button className="primary full" disabled={mode === "need" && (!needName || !needPrice)} onClick={onSubmit}>Submit intent for Guardian review</button><small className="fine">By submitting, you allow Yardle to automatically begin XRPL escrow when an eligible listing is matched.</small></section></div>
-}
+function ListingCard({ item, inCart, onAdd }: { item: Listing; inCart: boolean; onAdd: () => void }) { const safe = item.price >= item.mma * .7; return <article className="listing"><div className="image">{item.emoji}<span className="risk">● {safe ? "Guardian cleared" : "Needs review"}</span></div><div className="listing-body"><p>{item.category} · {item.condition}</p><h3>{item.title}</h3><div className="price-row"><strong>{money(item.price)}</strong><span>MMA {money(item.mma)}</span></div><small>Sold by {item.seller}</small><button onClick={onAdd} disabled={inCart}>{inCart ? "In your cart" : "I want this"}</button></div></article> }
+function Cart({ cart, selected, total, remove, toggle, checkout, browse }: { cart: Listing[]; selected: string[]; total: number; remove: (id: string) => void; toggle: (id: string) => void; checkout: () => void; browse: () => void }) { return <section className="page"><p className="eyebrow">YOUR INTENT</p><h1>Cart</h1><p className="lead">Your cart is separate from the marketplace. Nothing is purchased until you state your maximum price and submit a Need Window.</p>{cart.length === 0 ? <div className="empty">Your cart is clear. <button onClick={browse}>Browse available listings</button>.</div> : <div className="cart-lines">{cart.map((x) => <label className="cart-line" key={x.id}><input type="checkbox" checked={selected.includes(x.id)} onChange={() => toggle(x.id)} /><span>{x.emoji}</span><div><b>{x.title}</b><small>MMA snapshot: {money(x.mma)}</small></div><strong>{money(x.price)}</strong><button onClick={() => remove(x.id)}>×</button></label>)}<div className="checkout"><div><span>{selected.length} item{selected.length === 1 ? "" : "s"} selected</span><b>Listing total {money(total)}</b></div><button className="primary" disabled={!selected.length} onClick={checkout}>Review & price offers →</button></div></div>}</section> }
+function Activity({ intents, browse, received }: { intents: BuyerIntent[]; browse: () => void; received: (id: string) => void }) { return <section className="page"><p className="eyebrow">BUYER DASHBOARD</p><h1>My activity</h1><p className="lead">Track every 90-day Need Window from request through Guardian matching and XRPL escrow.</p>{intents.length === 0 ? <div className="empty">No active buyer intents yet. <button onClick={browse}>Browse listings</button> or create an I Need.</div> : <div className="activity-list">{intents.map((x) => <article className="activity-card" key={x.id}><span className={`state ${x.status}`} /><div><p>{x.source === "want" ? "I WANT" : "I NEED"} · Expires {x.expiresAt}</p><h3>{x.emoji} {x.title}</h3><small>Maximum price {money(x.offer)}{x.mma > 0 && ` · MMA snapshot ${money(x.mma)}`}</small></div><div className="activity-state"><b>{statusText[x.status]}</b>{x.matchTitle && <small>Matched with: {x.matchTitle}</small>}{x.status === "escrow" && <button className="primary" onClick={() => received(x.id)}>Confirm item received</button>}{x.status === "complete" && <small>Escrow released to seller</small>}</div></article>)}</div>}</section> }
+function Sell({ listings: mine, create, fund }: { listings: SellerListing[]; create: (x: Omit<SellerListing, "id" | "status" | "seller">) => void; fund: (id: string) => void }) { const [form, setForm] = useState({ title: "", category: "Other", condition: "Used", price: "", mma: "", emoji: "📦" }); const valid = form.title && Number(form.price) > 0 && Number(form.mma) > 0; return <section className="page seller-page"><p className="eyebrow">SELLER WORKSPACE</p><h1>Sell an item</h1><p className="lead">Create one unique listing. Guardian checks the MMA, then automatically considers eligible buyer Need Windows.</p><form className="sell-form" onSubmit={(e) => { e.preventDefault(); if (valid) { create({ ...form, price: Number(form.price), mma: Number(form.mma) }); setForm({ title: "", category: "Other", condition: "Used", price: "", mma: "", emoji: "📦" }) } }}><label>Item title<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Nintendo Switch OLED" /></label><label>Category<input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} /></label><label>Condition<input value={form.condition} onChange={(e) => setForm({ ...form, condition: e.target.value })} /></label><label>Your price<input type="number" min="1" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} placeholder="245" /></label><label>Market Moving Average<input type="number" min="1" value={form.mma} onChange={(e) => setForm({ ...form, mma: e.target.value })} placeholder="252" /></label><label>Item emoji<input value={form.emoji} onChange={(e) => setForm({ ...form, emoji: e.target.value })} /></label><div className="form-note">{Number(form.price) > 0 && Number(form.mma) > 0 ? (Number(form.price) < Number(form.mma) * .7 ? "Guardian will hold this underpriced listing for your review." : "Guardian price check: clear to publish.") : "Enter the current MMA to receive a Guardian price check."}</div><button className="primary" disabled={!valid}>Publish listing</button></form><h2 className="subhead">Your listings</h2>{mine.length === 0 ? <div className="empty">Published listings and their matches will appear here.</div> : <div className="activity-list">{mine.map((x) => <article className="activity-card" key={x.id}><span className={`state ${x.status === "live" ? "searching" : x.status === "matched" ? "matched" : x.status === "escrow" ? "escrow" : "complete"}`} /><div><p>{x.status.toUpperCase()}</p><h3>{x.emoji} {x.title}</h3><small>{money(x.price)} · MMA {money(x.mma)}</small></div><div className="activity-state"><b>{x.status === "live" ? "Live — awaiting eligible buyer" : x.status === "matched" ? "Eligible buyer selected" : x.status === "escrow" ? "XRPL escrow funded — ship item" : "Sold — escrow released"}</b>{x.buyer && <small>{x.buyer}</small>}{x.status === "matched" && <button className="primary" onClick={() => fund(x.id)}>Fund simulated escrow</button>}</div></article>)}</div>}</section> }
+function How() { return <section className="how"><p className="eyebrow">HOW YARDLE ALLOCATES FAIRLY</p><div className="steps"><div><b>01</b><h3>You state your ceiling</h3><p>Use I Want or I Need. You always see the MMA snapshot first.</p></div><div><b>02</b><h3>Guardian evaluates</h3><p>Price, velocity and transaction history are screened in real time.</p></div><div><b>03</b><h3>XRPL escrow settles</h3><p>The eligible buyer nearest to Need Window expiry wins, then escrow protects both parties.</p></div></div></section> }
+function IntentModal({ mode, items, close, submit }: { mode: IntentMode; items: Listing[]; close: () => void; submit: (x: Array<{ title: string; offer: number; mma: number; emoji: string }>, mode: IntentMode) => void }) { const [name, setName] = useState(""); const [price, setPrice] = useState(0); const [offers, setOffers] = useState<Record<string, number>>(() => Object.fromEntries(items.map((x) => [x.id, x.price]))); const rows = mode === "want" ? items : [{ id: "need", title: name || "Your requested item", mma: 0, emoji: "⌕" }]; const total = mode === "want" ? Object.values(offers).reduce((sum, x) => sum + x, 0) : price; return <div className="backdrop" role="dialog" aria-modal="true"><section className="modal"><button className="close" onClick={close}>×</button><p className="eyebrow">{mode === "want" ? "CONFIRM YOUR INTENT" : "CREATE AN I NEED"}</p><h2>{mode === "want" ? "Set your maximum prices" : "Tell Yardle what you need"}</h2><p className="muted">Your price is a buyout ceiling, not an immediate charge. Guardian will match only safe, eligible listings.</p>{mode === "need" && <label className="field">What are you looking for?<input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. iPad Pro 11-inch" /></label>}<div className="offer-lines">{rows.map((x) => <div className="offer-line" key={x.id}><span>{x.emoji}</span><div><b>{x.title}</b><small>{mode === "want" ? `MMA snapshot: ${money(x.mma)}` : "MMA snapshot will be calculated on submission"}</small></div><label>Maximum price<input type="number" min="0" value={mode === "want" ? offers[x.id] : price || ""} onChange={(e) => mode === "want" ? setOffers({ ...offers, [x.id]: Number(e.target.value) }) : setPrice(Number(e.target.value))} /></label></div>)}</div><div className="intent-total"><span>{rows.length} buyer intent{rows.length === 1 ? "" : "s"} · Need Window: 90 days</span><b>Maximum total: {money(total)}</b></div><button className="primary full" disabled={(mode === "need" && (!name || !price)) || (mode === "want" && !rows.length)} onClick={() => submit(mode === "want" ? items.map((x) => ({ title: x.title, offer: offers[x.id], mma: x.mma, emoji: x.emoji })) : [{ title: name, offer: price, mma: 0, emoji: "⌕" }], mode)}>Submit intent for Guardian review</button><small className="fine">By submitting, you allow Yardle to automatically begin XRPL escrow when an eligible listing is matched.</small></section></div> }

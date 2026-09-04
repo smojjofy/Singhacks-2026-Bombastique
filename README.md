@@ -2,7 +2,7 @@
 
 Yardle is an AI-guarded C2C marketplace for unique second-hand goods. Buyers either save available listings through **I Want** or create immediate priced demand through **I Need**. The Guardian compares offers to a Market Moving Average (MMA), detects unsafe behaviour, allocates eligible buyer intent fairly, and ultimately settles a transaction through XRPL escrow.
 
-> Status: hackathon MVP in active development. The current build provides the complete client-side intent and cart experience with simulated settlement. XRPL Testnet settlement is the next integration stage.
+> Status: hackathon MVP in active development. The current build provides client-side buyer intent, seller listing, matching, and simulated settlement flows. XRPL Testnet settlement is the next integration stage.
 
 ## What the prototype demonstrates
 
@@ -11,7 +11,9 @@ Yardle is an AI-guarded C2C marketplace for unique second-hand goods. Buyers eit
 - A secondary confirmation modal that shows MMA snapshots, captures a buyer maximum price per listing, and displays maximum total spend.
 - An **I Need** path that immediately creates a priced demand intent without a cart.
 - The 90-day Need Window rule: eligible buyers are allocated by shortest remaining window, then earliest intent timestamp.
-- A user-facing explanation of the Guardian and the intended XRPL escrow flow.
+- A **My activity** page that tracks submitted buyer intents from match search through simulated escrow and receipt confirmation.
+- A **Sell an item** workspace for creating a one-off listing with an MMA price check and an eligible-buyer match.
+- Simulated escrow controls that demonstrate the seller/buyer completion lifecycle.
 
 ## Technology stack
 
@@ -58,12 +60,14 @@ npm run build
 
 ## How to use the current MVP
 
-1. Browse the three available listings.
+1. Browse the available listings.
 2. Select **I want this** to place a unique listing into the cart.
-3. In **Cart**, select the lines to act on, remove any unwanted listing, and choose **Review & price offers**.
+3. Open the separate **Cart** page from the navigation, select the lines to act on, remove any unwanted listing, and choose **Review & price offers**.
 4. Review each MMA snapshot, enter a maximum price, and submit the buyer intent.
-5. Alternatively select **I need something** and provide an item description plus maximum price directly.
-6. The confirmation message represents a submitted 90-day Need Window awaiting Guardian matching.
+5. Open **My activity** to see the submitted 90-day Need Window and its current status.
+6. Alternatively select **I need something** and provide an item description plus maximum price directly.
+7. To sell, open **Sell an item**, enter the unique item details, asking price, and MMA. A safe listing is published and can be matched to an eligible active buyer intent.
+8. For a matched prototype sale, select **Fund simulated escrow** as the seller, then **Confirm item received** in My activity as the buyer.
 
 The current UI intentionally does not support a quantity picker: Yardle’s MVP is pure C2C and each listing is one unique item.
 
@@ -93,8 +97,8 @@ Useful official references: [xrpl.js](https://github.com/XRPLF/xrpl.js), [XRPL D
 
 ## Current limitations / next work
 
-- State is in the browser only; listings, carts, Buyer Intents, MMA history, and matching need a backend database.
-- Guardian checks and matching logic are explained in the UI but not yet executed as a service.
+- State is in the browser only; listings, carts, Buyer Intents, MMA history, matches, and orders need a backend database.
+- The prototype matching check is intentionally simplified: it requires a safe listing, an offer at or above the asking price, and a basic title match. Production matching must implement the full Need Window ordering rule and Guardian service.
 - No wallet connection or real Testnet transaction is active yet.
 - Ephemeral chat, authentication, listing images, paid market-data lookup, and x402/MPP are not built yet.
 

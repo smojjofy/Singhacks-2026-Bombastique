@@ -186,3 +186,11 @@ Every submitted buyer intent creates a **Need Window** valid for 90 days. It per
 ## 12. MVP Build Decision (2026-09-05)
 
 The prototype will start as a Vite + React + TypeScript application. It will build the marketplace, I Want cart, I Need intent form, MMA visibility, Guardian decision experience, and simulated escrow lifecycle first. XRPL actions will be isolated behind a payment-provider boundary so an `xrpl.js` XRPL Testnet implementation can replace the simulator without rewriting product flows. A real Testnet escrow lifecycle remains required for the final hackathon demo. `rippled` node/validator operation is not MVP scope. Required XRPL AI Starter Kit and x402/MPP integrations will be added once the official challenge resources are available.
+
+---
+
+## 13. Buyer Tracking and Seller Workspace (2026-09-05)
+
+The prototype provides separate Marketplace, Cart, My Activity, and Sell an Item application views. Submitting an I Want or I Need creates a visible 90-day Need Window in My Activity rather than only displaying a transient confirmation. Each buyer intent shows its Guardian lifecycle: searching, eligible match found, simulated XRPL escrow funded, and item received/complete.
+
+Sellers use Sell an Item to submit a single-unit listing with title, category, condition, price, MMA, and display emoji. The UI immediately flags a price below 70% of MMA. For the prototype, a safe seller listing selects an eligible active buyer intent when its price is at or below that buyer's ceiling and the item name matches. The seller may advance the matched sale into simulated escrow; the buyer can then confirm receipt, completing the simulated settlement. This is presentation-state only and must be connected to persistent storage and real XRPL Testnet escrow before the final demo.
