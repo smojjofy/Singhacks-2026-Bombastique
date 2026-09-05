@@ -1,5 +1,12 @@
 .venv
 .env
+.env.local
+/env
+.yardle-session-token
+.yardle-testnet-state.json.tmp
+.yardle-testnet-state.json
 node_modules/
 dist/
 *.tsbuildinfo
+playwright-report/
+test-results/

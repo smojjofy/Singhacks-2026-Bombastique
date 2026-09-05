@@ -194,3 +194,105 @@ The prototype will start as a Vite + React + TypeScript application. It will bui
 The prototype provides separate Marketplace, Cart, My Activity, and Sell an Item application views. Submitting an I Want or I Need creates a visible 90-day Need Window in My Activity rather than only displaying a transient confirmation. Each buyer intent shows its Guardian lifecycle: searching, eligible match found, simulated XRPL escrow funded, and item received/complete.
 
 Sellers use Sell an Item to submit a single-unit listing with title, category, condition, price, MMA, and display emoji. The UI immediately flags a price below 70% of MMA. For the prototype, a safe seller listing selects an eligible active buyer intent when its price is at or below that buyer's ceiling and the item name matches. The seller may advance the matched sale into simulated escrow; the buyer can then confirm receipt, completing the simulated settlement. This is presentation-state only and must be connected to persistent storage and real XRPL Testnet escrow before the final demo.
+
+---
+
+## 14. Local Dry-Test Setup (2026-09-05)
+
+The current frontend requires Node.js and npm only; no Python virtual environment or environment variables are needed. The .venv entry in .gitignore is incidental and does not indicate a Python dependency. Local setup was verified with Node v24.12.0 and npm 11.7.0: npm ci installed the locked dependencies successfully, and npm run build passed. Start the prototype with npm.cmd run dev on Windows. The lint script currently references ESLint without an ESLint dependency or configuration; this does not block development or production builds.
+
+---
+
+## 15. Operator-Assisted Demo Plan and Handoff (2026-09-05)
+
+The user requested a documented implementation plan for another AI to build the skeleton, followed by verification and completion. PLANNING.md now specifies the immediate demo scope; application implementation has not been performed as part of this planning task.
+
+The demo will use a separate /admin experience within the existing Vite/React application, with persisted shared browser state and same-origin tab synchronization. Admin approves safe seller listings and eligible buyer matches. A preset catalog of phones, personal mobility products, and household appliances provides seeded historical prices and derived read-only MMA; sellers no longer enter MMA. Listings below 70% of the derived condition-adjusted MMA must be held and excluded from purchase, with no admin override. The plan includes deterministic Need Window matching, persona-specific simulated Demo SGD wallets, escrow/release/refund accounting, persistent notifications, timelines, demo reset, and behavioral acceptance checks.
+
+This immediate presentation scope refines the earlier prototype decisions: funding is initiated through admin purchase approval, the catalog supplies MMA, and operator-assisted settlement is explicitly simulated. Real XRPL Testnet and XRPL AI Starter Kit/x402/MPP integrations remain outstanding challenge requirements, alongside longer-term autonomous Guardian and production features. See PLANNING.md for the complete implementation contract and handoff checklist.
+
+
+---
+
+## 16. Automatic Approval Demo Simplification (2026-09-05)
+
+The user replaced the separate admin experience with automatic buy/sell approval within an MMA threshold and rejection above or below it, plus visual wallet updates. The revised PLANNING.md supersedes section 15's operator-assisted implementation scope. No admin route, approval queue, manual approval, or two-tab infrastructure is required. Use a single persisted application with buyer/seller persona switching.
+
+The planning default is an inclusive 70-130% band of catalog-derived condition-adjusted MMA for seller asking prices and buyer maximum offers. The user did not specify numeric upper/lower bounds in this revision; 70% retains the existing floor and 130% is a configurable implementation assumption. Accepted unmatched buyer requests remain searching without charges; matching accepted requests automatically fund simulated escrow at the asking price. Receipt confirmation releases funds; cancellation refunds them. Rejections show reasons and never change balances. The preset catalog, notifications, wallet accounting, demo reset, and verification checklist remain required. No application code was changed in this planning revision; real XRPL and agentic payment challenge integrations remain outstanding.
+
+---
+
+## 17. Holistic Rubric Evaluation (2026-09-05)
+
+EVALUATION.md records a product and rubric review while the coding AI implements the skeleton. It assesses the planned simulation, not a verified finished application. The key finding is that the demo can illustrate a coherent customer journey but does not fully satisfy CHALLENGE.md's required real XRPL and XRPL AI Starter Kit/x402/MPP integrations. These are outstanding challenge obligations, distinct from optional future improvements. Builder-feedback and hook/skill setup evidence must also be checked; this review did not establish their completion.
+
+The evaluation identifies product-policy limitations: the 70-130% interval is a demo assumption rather than validated fraud detection; a maximum buyer budget differs from the executed price; fixed 90-day expiry priority is effectively oldest-request-first; and receipt/refund rules do not resolve production delivery disputes. It proposes an expandable roadmap separated into required integrations, production essentials, and optional expansion, with a focused pitch around demand-led resale and bounded purchasing. No implementation requirements or application code were changed by this evaluation. See EVALUATION.md for the full rubric mapping, evidence gaps, and pitch guidance.
+
+---
+
+## 18. Final-Submission Checklist Evaluation Update (2026-09-05)
+
+The user supplied a newer submission checklist requiring the customer/product explanation, AI-agent value, customer and agentic transaction journeys, at least one successful XRPL transaction, architecture, transaction hashes/explorer references, and reproducibility. This checklist describes the XRPL AI Starter Kit as recommended and x402/MPP explanation as conditional on applicability. EVALUATION.md now corrects the earlier blanket characterization of all integrations as mandatory, while retaining their relevance to the original weighted rubric.
+
+The critical recommended additions are one genuine constrained agent task, a connected validated Testnet transaction, asynchronous payment/receipt handling, an observable run trace, and a reproducible submission/evidence package. A direct Testnet Payment can address the transaction item without full real escrow, provided its business purpose and any nominal test amount are disclosed and it is not called escrow. These are evaluation recommendations only: PLANNING.md and application code were not modified. The coding AI's work remains in progress and unverified.
+
+---
+
+## 19. Transaction Authorization Interface Feasibility (2026-09-05)
+
+The user clarified that the proposed admin interface was intended to simulate XRPL transaction authorization and asked whether current work must be reverted. Read-only inspection found no need for wholesale rollback: a transaction authorization view could be added to the existing single-tab app by separating matching/reservation from funding and adding pending/approve/decline transitions. Automatic MMA decisions and existing product flows can remain. A simulated approval is not a real XRPL transaction or wallet-signing authority; real execution additionally needs a payer-authorized signer, async submission, validation, and stored receipts. EVALUATION.md records the detailed feasibility assessment. No implementation mode was selected, and neither PLANNING.md nor application code was changed.
+
+---
+
+## 20. Implementation Progress — Automatic-Rules MVP (2026-09-05)
+
+The PLANNING.md "revised implementation handoff" (automatic rules, simulated payments, no admin/approval) has been implemented and verified. The previous single-file prototype was replaced with a domain-driven, persisted app.
+
+- **Domain:** `src/domain/*` (config, types, integer-cent money, valuation with a 70–130% MMA interval, balances, matching, a command-layer reducer); `src/payments/*` (`PaymentProvider` boundary + `SimulatedPaymentProvider`); `src/data/catalog.ts` (15 products) and `src/data/seed.ts` (deterministic sales — main phone Good-condition MMA is exactly Demo SGD 400 — plus fixtures for I-Need-before-listing, oldest-expiry priority, and insufficient funds).
+- **Store:** `src/store/demoStore.ts` — versioned localStorage persistence, persona switching, confirmed reset, and corrupt-data recovery prompt.
+- **UI:** `src/pages/*` (Marketplace, Cart, I Need, Sell, Activity with buyer/seller tabs, Wallet, Notifications), responsive navigation, and a persistent "Demo: automated rules, simulated payments" label.
+- **Verification:** `npm ci`, `npm run build`, and `npm test` (25 Vitest tests including a full 7-step presentation walkthrough) all pass. The `lint` script was removed (eslint was never configured); static checking is `tsc -b`.
+- **Remaining:** a manual browser UI walkthrough, and the real XRPL Testnet escrow + XRPL AI Starter Kit / x402 / MPP integrations (outstanding challenge requirements, isolated behind the `PaymentProvider` boundary).
+- Details and acceptance-check evidence: see `DEBUG.md`.
+
+
+---
+
+## 21. Independent Review and Submission-Completion Plan (2026-09-05)
+
+The user reported the coding agent finished and requested an evaluation plus a rewritten PLANNING.md covering the missing critical demo features. Independent checks passed all 25 existing Vitest tests and the TypeScript/Vite production build. Four temporary probes confirmed missing actor/entity ownership enforcement, direct receipt completion bypassing the provider, accepted invalid persisted personas, and a null-intent load crash; the temporary file was removed. No browser walkthrough or live integration was performed. EVALUATION.md and DEBUG.md record this distinction and the findings.
+
+The replacement plan preserves the simulator and automatic MMA rules, adds a same-app payer authorization gate, and specifies a genuine constrained agent and local backend for a real direct-XRP Testnet transaction path with authoritative order state, durable async reconciliation, receipts/explorer evidence, and actual wallet updates. Simulation and Testnet currencies/states remain separate. The main Testnet fixture uses MMA 4 test XRP, asking 3.5, and ceiling 3.8 as an explicit test price schedule, not a market exchange rate. Direct payments cannot be labeled escrow; real escrow is deferred for the minimum submission. Setup, ownership/storage fixes, browser/live tests, and submission/feedback documents are included.
+
+The current official challenge README was checked and explicitly states XRPL is mandatory while Starter Kit and agentic payment standards are recommended. This matches the user's newer checklist and corrects the earlier stronger historical wording without modifying CHALLENGE.md. The new plan supersedes the simulation-only no-authorization/no-backend limitation where needed for live execution. This turn changed documentation only; the missing integrations remain implementation work.
+
+---
+
+## 22. Human Test and Recording Checklist (2026-09-05)
+
+The user requested a comprehensive human test plan for the expected submission-ready second implementation, including recording and rapid bug assistance, then specified markdown tables in _test.md. That file now contains setup, fixtures, expected simulation/Testnet balance changes, seller/buyer/authorization/agent/live-payment cases, recovery/usability checks, a concise recording script, evidence gates, and a bug-report/repair workflow. Its tests are expected behavior and start NOT RUN; no round-two features were verified by writing it. PLANNING.md and application code were not changed. The user can report a test ID and symptom in this thread for scoped diagnosis, repair, and retesting.
+
+---
+
+## 23. Milestone 1 Implementation (2026-09-05)
+
+Round-two Milestone 1 (repair ownership/persistence + money/schema types) is implemented and verified. The previous 25 tests still pass and 17 new tests were added (42 total); `npm run build` passes.
+
+- **Actor/ownership:** every mutating command now carries an explicit `actorId`; the reducer rejects unknown actors and wrong-owner edit/receipt/cancel/mark-read operations with no side effects. Seed fixtures and tests pass explicit fixture actors.
+- **Tagged money types:** `src/domain/paymentTypes.ts` adds `Currency`/`MoneyAmount` (SGD cents vs XRP drops); `money.ts` adds currency-aware `formatAmount`/`parseAmount`/`parseXrp` so XRP never flows through the SGD `formatMoney`.
+- **Persistence hardening:** `src/domain/validation.ts` adds deep nested validation (entity shapes, money, timestamps, relationships, current persona); `demoStore.ts` recovers from corrupt/incompatible data with a reset prompt and surfaces `persistError` when writes fail.
+- **Tests:** `src/store/demoStore.test.ts` (persistence/corruption round-trip) and `src/domain/ownership.test.ts` (ownership + two-order isolation).
+- Playwright + Chromium were installed successfully (for Milestone 5 browser checks).
+
+---
+
+## 24. Round-two milestones M2–M5 complete (2026-09-05)
+
+- **M2 authorization:** matching now reserves a `Proposal` and moves no money until `authorizeProposal`; `declineProposal`/expiry release the reservation. Added an Authorize page and activity actions.
+- **M3 server + Testnet:** loopback local service (`server/`), XRP-drops test schedule (`drops = cents × 100`), durable async payment executor (reliable submission + reconcile), test-account setup, Testnet page, `.env.example`.
+- **M4 agent:** provider-agnostic tool-calling agent (`lookup_product`/`get_valuation`/`prepare_payment` only; no signing), clarification/refusal, `/api/agent/request`, natural-language "Ask the agent" entry. Live model gate blocked on `MODEL_API_KEY`.
+- **M5 evidence:** Playwright suite (3 tests), post-submit outcome feedback, two-mode copy fixes, `SUBMISSION.md` / `BUILDER_FEEDBACK.md` / `TRANSACTIONS.md`, `export-evidence`.
+- **Verification:** `npm test` (60), `npm run build`, `npm run typecheck:server`, `npx playwright test` all pass. One real validated XRPL Testnet `Payment` was executed (ledger `20498148`, tx `7554713F…`, balances reconciled) — see `TRANSACTIONS.md`.
+- Optional M6 (Starter Kit / x402 / MPP) is deferred; not required for the minimum real-transaction checklist.
+
+
