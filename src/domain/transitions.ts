@@ -5,7 +5,7 @@
 import { AUTHORIZATION_WINDOW_MS, CURRENCY, NEED_WINDOW_DAYS, CONDITIONS } from "./config"
 import { availableCents } from "./balances"
 import { byListingPriority, eligibleIntentsForListing, isExpired } from "./matching"
-import { computeSnapshot, isWithinInterval, rejectionReason } from "./valuation"
+import { moveMarketPrice, snapshotFromMarket, isWithinInterval, rejectionReason } from "./valuation"
 import { isValidCents } from "./money"
 import type { PaymentProvider } from "../payments/PaymentProvider"
 import type {
@@ -77,7 +77,7 @@ function doSubmitIntent(
   const product = state.catalog.find((p) => p.id === productId)
   if (!product) return { state, intent: null as never }
 
-  const snapshot = computeSnapshot(productId, condition, state.sales)
+  const snapshot = snapshotFromMarket(productId, condition, state.marketPrices, state.sales)
   const expiresAt = now + NEED_WINDOW_DAYS * 86_400_000
   const base: BuyerIntent = {
     id: newId("intent"),
@@ -120,7 +120,7 @@ function doCreateListing(
   const product = state.catalog.find((p) => p.id === productId)
   if (!product) return { state, listing: null as never }
 
-  const snapshot = computeSnapshot(productId, condition, state.sales)
+  const snapshot = snapshotFromMarket(productId, condition, state.marketPrices, state.sales)
   const base: Listing = {
     id: newId("listing"),
     sellerId,
@@ -145,6 +145,12 @@ function doCreateListing(
   const listing: Listing = base
   let next = { ...state, listings: [listing, ...state.listings] }
   next = notify(next, sellerId, listing.id, "Listing published (auto-approved)", now)
+  // Stock-like MMA: an accepted listing pushes the market price up, scaled by
+  // where the ask sits in the accepted interval.
+  next = {
+    ...next,
+    marketPrices: moveMarketPrice(next.marketPrices, productId, amountCents, condition, 1, next.sales),
+  }
   return { state: next, listing }
 }
 
@@ -419,7 +425,7 @@ function checkoutCart(
       const productId = listing?.productId ?? ""
       const condition = listing?.condition ?? ("Good" as Condition)
       const snapshot =
-        listing?.snapshot ?? computeSnapshot(productId, condition, next.sales)
+        listing?.snapshot ?? snapshotFromMarket(productId, condition, next.marketPrices, next.sales)
       const intent: BuyerIntent = {
         id: newId("intent"),
         buyerId,
@@ -486,6 +492,11 @@ function editListing(state: DemoState, actorId: string, listingId: string, amoun
     timeline: [...listing.timeline, { at: now, label: "Price edited — re-published" }],
   })
   next = notify(next, listing.sellerId, listingId, "Listing price updated (auto-approved)", now)
+  // A re-published ask is a listing event: move the market price up with it.
+  next = {
+    ...next,
+    marketPrices: moveMarketPrice(next.marketPrices, listing.productId, amountCents, listing.condition, 1, next.sales),
+  }
   return next
 }
 
@@ -523,6 +534,12 @@ function confirmReceipt(state: DemoState, actorId: string, orderId: string, now:
   }
   next = notify(next, order.buyerId, order.id, "Sale complete — escrow released to seller", now)
   next = notify(next, order.sellerId, order.id, "Sale complete — funds received", now)
+  // Stock-like MMA: a completed sale pushes the market price down, scaled by
+  // where the sale price sits in today's accepted interval.
+  next = {
+    ...next,
+    marketPrices: moveMarketPrice(next.marketPrices, order.productId, order.amountCents, order.condition, -1, next.sales),
+  }
   return next
 }
 

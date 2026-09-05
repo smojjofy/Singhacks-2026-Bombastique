@@ -44,8 +44,24 @@ export const MMA_SAMPLE_COUNT = 10
 /** Source label shown next to every valuation snapshot. */
 export const MMA_SOURCE = "Based on 10 seeded demo sales"
 
+/**
+ * Source label for the live market price (seed baseline that listings and
+ * completed sales move — the stock-like MMA).
+ */
+export const MARKET_SOURCE = "Market price: seeded baseline updated by listings & completed sales"
+
+/**
+ * Moving-MMA policy. Each accepted listing pushes the market price up and each
+ * completed sale pushes it down, by an amount that scales with where the price
+ * sits inside the accepted interval: at the low end the MMA barely moves, at
+ * the high end it moves by a margin (maxPct), never more.
+ */
+export const MMA_TICK_MIN_PCT = 0.15 // barely — at the lowest acceptable price
+
+export const MMA_TICK_MAX_PCT = 1.5 // significant margin, still bounded — at the highest acceptable price
+
 /** Persisted-state version. Bump to force a reset on incompatible data. */
-export const STORE_VERSION = 1
+export const STORE_VERSION = 2
 
 /** Seed fixture version. Bump to invalidate stale persisted seed data. */
 export const SEED_VERSION = 1

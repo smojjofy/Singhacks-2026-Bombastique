@@ -182,6 +182,12 @@ export function isValidState(value: unknown): value is DemoState {
   if (!Array.isArray(s.catalog) || !s.catalog.every(isValidProduct)) return false
   if (!Array.isArray(s.sales) || !s.sales.every(isValidSale)) return false
   if (!Array.isArray(s.listings) || !s.listings.every(isValidListing)) return false
+  if (
+    !isObj(s.marketPrices) ||
+    !Object.entries(s.marketPrices).every(([k, v]) => isStr(k) && isNonNegInt(v))
+  ) {
+    return false
+  }
   if (!Array.isArray(s.intents) || !s.intents.every(isValidIntent)) return false
   if (!Array.isArray(s.orders) || !s.orders.every(isValidOrder)) return false
   if (!Array.isArray(s.proposals) || !s.proposals.every(isValidProposal)) return false

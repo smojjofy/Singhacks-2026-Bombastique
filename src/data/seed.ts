@@ -3,7 +3,7 @@
 import { PRODUCTS } from "./catalog"
 import { SEED_VERSION, STORE_VERSION } from "../domain/config"
 import { reduce } from "../domain/transitions"
-import { computeSnapshot } from "../domain/valuation"
+import { baseMmaCents, computeSnapshot } from "../domain/valuation"
 import { SimulatedPaymentProvider } from "../payments/SimulatedPaymentProvider"
 import type { DemoState, Persona, SaleSample } from "../domain/types"
 
@@ -93,12 +93,15 @@ function buildSales(now: number): SaleSample[] {
 }
 
 export function buildBaseState(now: number): DemoState {
+  const sales = buildSales(now)
   return {
     version: STORE_VERSION,
     seedVersion: SEED_VERSION,
     personas: PERSONAS.map((p) => ({ ...p })),
     catalog: PRODUCTS.map((p) => ({ ...p })),
-    sales: buildSales(now),
+    sales,
+    // Canonical starting market price per product = mean of its seeded sales.
+    marketPrices: Object.fromEntries(PRODUCTS.map((p) => [p.id, baseMmaCents(p.id, sales)])),
     listings: [],
     intents: [],
     orders: [],
@@ -150,24 +153,26 @@ export function buildSeedState(now: number): DemoState {
 
   // 4. Insufficient-funds fixture: a microwave listing that the low-balance
   //    persona cannot fund. The listing stays live; the intent is funding_failed.
+  //    The intent is submitted first (so its snapshot uses the canonical MMA),
+  //    then the listing triggers matching.
   const micro = computeSnapshot("microwave-panasonic", "Good", state.sales)
+  state = dispatch(
+    { type: "submitIntent", actorId: "buyer-lee", source: "need", productId: "microwave-panasonic", condition: "Good", ceilingCents: micro.adjustedMmaCents },
+    now,
+  )
   state = dispatch(
     { type: "createListing", actorId: "seller-maya", productId: "microwave-panasonic", condition: "Good", amountCents: micro.adjustedMmaCents },
     now,
   )
-  const microId = state.listings.find((l) => l.productId === "microwave-panasonic")?.id
-  if (microId) {
-    state = dispatch(
-      { type: "submitIntent", actorId: "buyer-lee", source: "want", productId: "microwave-panasonic", condition: "Good", targetListingId: microId, ceilingCents: micro.adjustedMmaCents },
-      now,
-    )
-    // Lee authorizes, but funding fails (low balance): intent -> funding_failed,
-    // listing released back to live. Exercises the authorization gate in the seed.
-    const leeProposal = state.proposals.find((p) => p.buyerId === "buyer-lee")?.id
-    if (leeProposal) {
-      state = dispatch({ type: "authorizeProposal", actorId: "buyer-lee", proposalId: leeProposal }, now)
-    }
+  // Lee authorizes, but funding fails (low balance): intent -> funding_failed,
+  // listing released back to live. Exercises the authorization gate in the seed.
+  const leeProposal = state.proposals.find((p) => p.buyerId === "buyer-lee" && p.status === "awaiting_authorization")?.id
+  if (leeProposal) {
+    state = dispatch({ type: "authorizeProposal", actorId: "buyer-lee", proposalId: leeProposal }, now)
   }
 
-  return state
+  // Fixtures were built by moving the market price; reset to the canonical
+  // baseline so a fresh demo starts at the same MMA every time.
+  const baseline = Object.fromEntries(PRODUCTS.map((p) => [p.id, baseMmaCents(p.id, state.sales)]))
+  return { ...state, marketPrices: baseline }
 }

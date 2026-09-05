@@ -14,8 +14,11 @@ There are two clearly separated modes:
 
 ## What it demonstrates
 
-- Seeded catalog (15 products), latest-10-sales MMA, condition adjustment, and an inclusive
-  70–130% price policy for both seller asking prices and buyer ceilings.
+- Seeded catalog (15 products), latest-10-sales MMA baseline, condition adjustment, and an
+  inclusive 70–130% price policy for both seller asking prices and buyer ceilings.
+- A **stock-like moving MMA**: each accepted listing pushes the market price up and each
+  completed sale pushes it down, scaled by where the price sits in the accepted interval
+  (barely at the low end, a bounded margin at the high end).
 - Automatic approval/rejection of listings and buyer requests, with visible reasons.
 - Matching that **reserves** a listing/intent and creates an **awaiting-authorization
   proposal** (no money moves), funded only after the payer authorizes.
@@ -57,7 +60,8 @@ Copy the session token into the "Testnet" page, then use "Ask the agent" or "Pre
 and authorize. Set `MODEL_API_KEY` (plus `MODEL_BASE_URL`/`MODEL_NAME`) in `.env`/`.env.local`
 to enable the live agent; see `.env.example`.
 
-> The seller never provides an MMA — it is always derived from seeded sales. The Testnet
+> The seller never provides an MMA — it always comes from the seeded-sales baseline and then
+> moves with listings (up) and completed sales (down). The Testnet
 > fixture denomination is `drops = sample cents × 100` (4 XRP MMA for the phone), which is a
 > deterministic fixture, **not** an exchange rate or a real-world valuation.
 

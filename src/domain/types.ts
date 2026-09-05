@@ -172,6 +172,12 @@ export interface DemoState {
   personas: Persona[]
   catalog: Product[]
   sales: SaleSample[]
+  /**
+   * Current market price (base "Good" MMA in cents) per product. Moves with
+   * accepted listings (up) and completed sales (down); seeded sales set the
+   * initial baseline. See valuation.ts tick helpers.
+   */
+  marketPrices: Record<string, number>
   listings: Listing[]
   intents: BuyerIntent[]
   orders: Order[]

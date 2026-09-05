@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { demoStore, useDemoStore } from "../store/demoStore"
 import { ConditionSelect, ProductSelect } from "../components/forms"
 import { DecisionPreview, Field, ValuationPanel } from "../components/ui"
-import { computeSnapshot } from "../domain/valuation"
+import { snapshotFromMarket } from "../domain/valuation"
 import { parseCents } from "../domain/money"
 import type { Condition } from "../domain/types"
 
@@ -15,7 +15,7 @@ export function NeedPage() {
   const [result, setResult] = useState<{ tone: "ok" | "danger"; text: string } | null>(null)
 
   const snapshot = useMemo(
-    () => computeSnapshot(productId, condition, state.sales),
+    () => snapshotFromMarket(productId, condition, state.marketPrices, state.sales),
     [productId, condition, state.sales],
   )
   const cents = parseCents(price)

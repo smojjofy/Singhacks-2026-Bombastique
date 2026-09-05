@@ -336,3 +336,21 @@ MPP meter overage 400 drops (ledger 20499945, tx 86BF61F632A1…), fee vault `rH
 +5,800 drops exactly (600×9 + 400×1). Velocity meter live: rounds 1–5 free, round 6 metered.
 Two earlier 600-drop oracle fees were orphaned during the DeliverMax bug (paid, then
 verification failed) — recorded in TRANSACTIONS.md; a receive-only fee vault cannot refund.
+
+## 2026-09-05 — Moving MMA ("stock-like") implemented (simulation)
+
+Previously the MMA was fixed (latest-10 seeded-sales mean). Now `DemoState.marketPrices`
+(product base "Good" MMA, cents) starts from that baseline and moves on live activity in the
+reducer: an accepted listing (createListing or a re-published edit) pushes it UP, a completed
+sale (confirmReceipt) pushes it DOWN. Magnitude scales with where the price sits in the
+accepted interval via `positionInRange` + `mmaTickPct`: MMA_TICK_MIN_PCT 0.15% at the lowest
+acceptable price ("barely") to MMA_TICK_MAX_PCT 1.5% at the highest ("significant but
+bounded"); symmetric for sales. Snapshots, validation ranges and the Sell/Need live preview
+now read the current market price (`snapshotFromMarket`). STORE_VERSION bumped 1->2 so stale
+persisted states reset. Seed fixtures reset the market price to the canonical baseline at the
+end of buildSeedState (and the microwave fixture now submits its intent before the listing so
+no fixture snapshot drifts). Testnet fixture pricing is unchanged (fixed 4 XRP).
+Verification: `npm test` 84 passed (new `src/domain/mma.test.ts`, 9 tests: exact 40060/40600/
+39940/39400/40218 ticks, full list->authorize->confirm journey, rejection no-move,
+product-scoped), `npm run build` and `npx playwright test` 3/3 green. Docs: README, _test.md
+(row G08).
