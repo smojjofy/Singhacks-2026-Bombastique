@@ -10,6 +10,7 @@ Target: the submission-ready second implementation in PLANNING.md. These are exp
 | Check readiness | Start the app and local service using README. Verify model, Testnet, and configured test accounts are ready. Ask the coding agent for passing build/test results for this build. |
 | Use the correct mode | Simulation uses Demo SGD and simulated escrow. Testnet uses test XRP and direct payments. Neither uses Mainnet funds. |
 | Use known personas | Maya = seller; Alex = main buyer; Blake = competing buyer; Lee = low-balance simulation buyer. If names changed, record the mapping. |
+| Know the layout | Product tab bar: Marketplace, I Need, Sell, Activity, Notifications. Top-right, beside the Persona selector: Cart and Wallet (persona-scoped). Separately grouped demo/debug controls: Authorize, Testnet, Reset. |
 | Start predictably | Reset simulation. Prepare the supported Testnet phone fixture with no old reservation. Reconcile any pending/uncertain transaction before attempting another payment. |
 | Record safely | Capture the app window; hide credentials, wallet seeds, private terminal output, and unrelated notifications. Public test addresses/hashes are useful evidence. |
 | Keep tests separate | Run functional tests first, then make a concise presentation recording. Use one app tab; an explorer tab is fine. Do not run concurrent app sessions to test a single-tab prototype. |
@@ -34,9 +35,11 @@ Run the rows in order within each group. Use fresh simulation orders/reset for a
 
 | ID | Mode / setup | Your steps | Expected result | Status / evidence |
 |---------------|---------------|---------------|---------------|---------------|
-| P01 | App started | Visit Marketplace, Cart, I Need/agent, Sell, Activity, Wallet, Notifications, Authorization. | Every view opens; useful empty states; no blank screen. | NOT RUN |
-| P02 | Both modes | Switch Simulation → Testnet → Simulation. | Correct labels, prices and histories; no conversion, new payment, or lost reservation. | NOT RUN |
-| P03 | Simulation | Switch Maya/Alex while viewing Activity and Wallet. | Correct person's data/actions; no stale persona submission. | NOT RUN |
+| P01 | App started | Visit every tab-bar page (Marketplace, I Need, Sell, Activity, Notifications) and every top-right tool (Cart, Wallet, Authorize, Testnet, Reset). | Every view opens; useful empty states; no blank screen. | NOT RUN |
+| P02 | Layout | Compare the header against the intended grouping. | Product tab bar contains only final-product features; Cart and Wallet sit beside the Persona selector (persona-scoped); Authorize, Testnet and Reset are grouped separately as demo/debug controls. | NOT RUN |
+| P03 | Both modes | Switch Simulation → Testnet → Simulation. | Correct labels, prices and histories; no conversion, new payment, or lost reservation. | NOT RUN |
+| P04 | Simulation | Switch Maya/Alex while viewing Activity, Wallet and Cart. | Correct person's data/actions; Cart and Wallet reflect the selected persona; no stale persona submission. | NOT RUN |
+| P05 | Narrow viewport | At ~390px width open each tab-bar page and each tool (Cart, Wallet, Authorize, Testnet, Reset). | All controls remain reachable and readable; the tab bar scrolls/wraps without hiding an action. | NOT RUN |
 | S01 | Simulation, Maya | Select phone / Good in Sell before entering price. | Read-only MMA 400, range 280–520, seeded source/date; seller cannot supply MMA. | NOT RUN |
 | S02 | Continue S01 | Submit 200; inspect Activity and Marketplace. | Rejected below range, reason visible, not purchasable, balances unchanged. | NOT RUN |
 | S03 | Same product | Correct/resubmit at 550. | Rejected above range; unavailable; balances unchanged. | NOT RUN |
@@ -75,6 +78,7 @@ Run the rows in order within each group. Use fresh simulation orders/reset for a
 | L05 | Same operation | Refresh real balances; note actual XRP fee F. | Without unrelated activity: buyer B −3.5 −F; seller S +3.5. Compare ledger balance to ledger balance, not spendable-after-reserve. | NOT RUN |
 | L06 | Paid order | Confirm item received. | Fulfilled status; no extra transfer or fake escrow release; physical handoff remains simulated. | NOT RUN |
 | L07 | Confirmed receipt saved | Refresh, switch persona/back, then restart service normally and return. | Same receipt/history retained; no repeat payment. Export sanitized evidence using final README. | NOT RUN |
+| L08 | Pending proposal (awaiting authorization) | Prepare a proposal, leave the Testnet page to Marketplace/Activity, then return (no refresh). | Order history is refetched and the same pending order is shown with status unchanged; no duplicate prepare or lost order. | NOT RUN |
 | R01 | Completed simulation | Refresh and reopen app. | Correct saved balances/orders/notifications; no duplicated events. | NOT RUN |
 | R02 | Real receipt exported | Reset simulation and inspect Testnet evidence again. | Simulation resets; real receipts survive and actual balances do not reset. | NOT RUN |
 | R03 | Awaiting authorization | Refresh/close/reopen before approval. | Same pending or safely expired proposal; opening app cannot authorize it. | NOT RUN |
@@ -149,4 +153,4 @@ Send me the test ID and observed problem in this thread. I can inspect the code/
 | Service/key/funding unavailable | Mark BLOCKED with the exact readiness failure; do not substitute fake model/transaction success. |
 | Cosmetic issue | Capture and batch for repair unless it obscures money, status or required actions. |
 
-If time is short, prioritize P01–P03, S01–S05, A01–A04, G01, L01–L07, R01–R02, and the evidence gate. Run refund, boundary and disruptive checks during rehearsal rather than the final recording.
+If time is short, prioritize P01–P05, S01–S05, A01–A04, G01, L01–L07, R01–R02, and the evidence gate. Run refund, boundary and disruptive checks during rehearsal rather than the final recording.

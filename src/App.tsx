@@ -25,17 +25,14 @@ export default function App() {
     (p) => p.buyerId === current.id && p.status === "awaiting_authorization",
   ).length
 
-  const nav: Array<{ id: Page; label: string; badge?: number }> = [
+  const mainNav: Array<{ id: Page; label: string; badge?: number }> = [
     { id: "market", label: "Marketplace" },
-    { id: "cart", label: "Cart", badge: cartCount },
     { id: "need", label: "I Need" },
     { id: "sell", label: "Sell" },
     { id: "activity", label: "Activity" },
-    { id: "authorize", label: "Authorize", badge: pendingAuth },
-    { id: "wallet", label: "Wallet" },
     { id: "notifications", label: "Notifications", badge: unread },
-    { id: "testnet", label: "Testnet" },
   ]
+  const toolBtn = (id: Page) => (page === id ? "tool-btn active" : "tool-btn")
 
   return (
     <main>
@@ -69,8 +66,9 @@ export default function App() {
           <span>●</span> yardle
         </button>
 
+        {/* Product features */}
         <nav className="nav" aria-label="Primary">
-          {nav.map((n) => (
+          {mainNav.map((n) => (
             <button
               key={n.id}
               className={page === n.id ? "active" : ""}
@@ -96,9 +94,31 @@ export default function App() {
               ))}
             </select>
           </label>
-          <button className="reset" onClick={() => setConfirmReset(true)}>
-            Reset
-          </button>
+
+          {/* User-related, persona-scoped */}
+          <div className="tool-group persona-nav" aria-label="Your account">
+            <button className={toolBtn("cart")} onClick={() => setPage("cart")}>
+              Cart
+              {cartCount > 0 && <b>{cartCount}</b>}
+            </button>
+            <button className={toolBtn("wallet")} onClick={() => setPage("wallet")}>
+              Wallet
+            </button>
+          </div>
+
+          {/* Demo/debug controls, separate from the product UI */}
+          <div className="tool-group demo-nav" aria-label="Demo and debug controls">
+            <button className={toolBtn("authorize")} onClick={() => setPage("authorize")}>
+              Authorize
+              {pendingAuth > 0 && <b>{pendingAuth}</b>}
+            </button>
+            <button className={toolBtn("testnet")} onClick={() => setPage("testnet")}>
+              Testnet
+            </button>
+            <button className="reset" onClick={() => setConfirmReset(true)}>
+              Reset
+            </button>
+          </div>
         </div>
       </header>
 

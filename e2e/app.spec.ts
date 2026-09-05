@@ -36,12 +36,12 @@ test("buyer reserves then authorizes a simulated payment", async ({ page }) => {
   // Add the seeded (affordable) microwave listing to the cart and submit an intent.
   const card = page.locator(".listing", { hasText: "Panasonic" })
   await card.getByRole("button", { name: "I want this" }).click()
-  await page.locator(".nav button", { hasText: "Cart" }).click()
+  await page.locator(".persona-nav button", { hasText: "Cart" }).click()
   await page.getByRole("button", { name: /Review & price offers/ }).click()
   await page.getByRole("button", { name: "Submit intent for Guardian review" }).click()
 
   // Authorization gate: a proposal is now awaiting authorization.
-  await page.locator(".nav button", { hasText: "Authorize" }).click()
+  await page.locator(".demo-nav button", { hasText: "Authorize" }).click()
   await expect(page.getByText("Awaiting authorization").first()).toBeVisible()
   await page.getByRole("button", { name: /Authorize Demo SGD/ }).click()
 
