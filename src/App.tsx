@@ -14,7 +14,7 @@ import { TestnetPage } from "./pages/Testnet"
 type Page = "market" | "cart" | "need" | "sell" | "activity" | "authorize" | "wallet" | "notifications" | "testnet"
 
 export default function App() {
-  const { state, corrupt, persistError } = useDemoStore()
+  const { state, corrupt, persistError, meterNotice } = useDemoStore()
   const [page, setPage] = useState<Page>("market")
   const [confirmReset, setConfirmReset] = useState(false)
 
@@ -58,6 +58,13 @@ export default function App() {
         <div className="corrupt-banner" role="alert">
           <span>Could not save demo state to this browser (storage may be full or blocked).</span>
           <button onClick={() => demoStore.clearPersistError()}>Dismiss</button>
+        </div>
+      )}
+
+      {meterNotice && (
+        <div className="corrupt-banner" role="alert">
+          <span>{meterNotice.message}</span>
+          <button onClick={() => demoStore.dismissMeterNotice()}>Dismiss</button>
         </div>
       )}
 

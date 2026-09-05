@@ -63,7 +63,7 @@ ledger `20498148`, tx `7554713F…`, with before/after balance reconciliation.
 
 ```bash
 npm ci
-npm test                 # 60 tests
+npm test                 # 75 tests (domain + server + m2m)
 npm run build
 npx playwright test      # browser smoke tests
 npm run setup:testnet && npm run server   # real Testnet path
@@ -72,6 +72,7 @@ npm run setup:testnet && npm run server   # real Testnet path
 ## 8. Remaining production improvements
 
 Escrow (Finish/Condition) instead of a direct Payment, multi-signing/custody, authn/authz,
-multi-device sync, dynamic MMA from real trades, x402/MPP paid data lookup, and shipping/
-dispute flows. The XRPL AI Starter Kit and x402/MPP remain recommended but were not required
-for the minimum real-transaction checklist; they are future work.
+multi-device sync, dynamic MMA from real trades, and shipping/dispute flows. The XRPL AI
+Starter Kit was not consumed (we run an OpenAI-compatible tool-calling loop directly).
+x402 (paid MMA-pricing oracle with signed vouchers) and MPP (metered velocity/anti-bot
+micro-payments) are implemented as a documented secondary M2M flow on the Testnet path.

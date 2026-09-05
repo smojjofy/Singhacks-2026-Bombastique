@@ -5,10 +5,15 @@ import { useSyncExternalStore } from "react"
 import { buildSeedState } from "../data/seed"
 import { reduce, expireIntents } from "../domain/transitions"
 import { isValidState } from "../domain/validation"
+import { VELOCITY_FREE_LIMIT, VELOCITY_WINDOW_MS } from "../domain/config"
+import { VelocityTracker } from "../domain/velocity"
 import { SimulatedPaymentProvider } from "../payments/SimulatedPaymentProvider"
 import type { Command, DemoState } from "../domain/types"
 
 const STORAGE_KEY = "yardle.demo.state.v1"
+
+/** Guarded submissions that consume a free-tier velocity slot per persona. */
+const GUARDED: ReadonlySet<Command["type"]> = new Set(["createListing", "submitIntent", "checkoutCart"])
 
 type Listener = () => void
 
@@ -17,6 +22,8 @@ export interface DemoStoreSnapshot {
   corrupt: boolean
   /** True when a persistence write failed (e.g. storage full / private mode). */
   persistError: boolean
+  /** Anti-bot velocity notice when a guarded submission is blocked (sim free tier). */
+  meterNotice: { actorId: string; message: string; retryAfterMs: number } | null
 }
 
 export interface DemoStoreApi {
@@ -26,6 +33,7 @@ export interface DemoStoreApi {
   reset: () => void
   acknowledgeCorrupt: () => void
   clearPersistError: () => void
+  dismissMeterNotice: () => void
 }
 
 function loadPersisted(): { state: DemoState | null; corrupt: boolean } {
@@ -41,13 +49,15 @@ function loadPersisted(): { state: DemoState | null; corrupt: boolean } {
   }
 }
 
-export function createDemoStore(now = Date.now()): DemoStoreApi {
+export function createDemoStore(now = Date.now(), clock: () => number = Date.now): DemoStoreApi {
   const provider = new SimulatedPaymentProvider()
+  const velocity = new VelocityTracker(VELOCITY_WINDOW_MS, VELOCITY_FREE_LIMIT)
   const loaded = loadPersisted()
   let snapshot: DemoStoreSnapshot = {
     state: loaded.state ?? buildSeedState(now),
     corrupt: loaded.corrupt,
     persistError: false,
+    meterNotice: null,
   }
   // Evaluate expiry of any persisted intents on load.
   if (loaded.state) {
@@ -85,6 +95,32 @@ export function createDemoStore(now = Date.now()): DemoStoreApi {
       if (dispatching) return // serialize in-flight commands; repeated clicks are dropped
       dispatching = true
       try {
+        // Anti-bot free tier (simulation). Mirrors the server MPP meter: over
+        // the free allowance a guarded submission is blocked here; on the
+        // Testnet flow the overage would instead be metered for real drops.
+        const t = clock()
+        if (GUARDED.has(cmd.type)) {
+          const actor = (cmd as { actorId: string }).actorId
+          if (!velocity.isWithinFreeTier(actor, t)) {
+            const retryAfterMs = Math.max(1_000, Math.ceil(velocity.msUntilFree(actor, t) / 1_000) * 1_000)
+            snapshot = {
+              ...snapshot,
+              meterNotice: {
+                actorId: actor,
+                message:
+                  "Anti-bot velocity limit: this persona has used its free allowance of submissions this minute. The Testnet flow meters over-limit requests (MPP); the simulation enforces the free tier only.",
+                retryAfterMs,
+              },
+            }
+            emit()
+            return
+          }
+          velocity.record(actor, t)
+          if (snapshot.meterNotice) snapshot = { ...snapshot, meterNotice: null }
+        } else {
+          // Any other action clears a stale notice.
+          if (snapshot.meterNotice) snapshot = { ...snapshot, meterNotice: null }
+        }
         const next = reduce(snapshot.state, cmd, Date.now(), provider)
         if (next !== snapshot.state) commit(next)
       } finally {
@@ -92,9 +128,10 @@ export function createDemoStore(now = Date.now()): DemoStoreApi {
       }
     },
     reset: () => {
+      velocity.reset()
       const fresh = buildSeedState(Date.now())
       const ok = persist(fresh)
-      snapshot = { state: fresh, corrupt: false, persistError: !ok }
+      snapshot = { state: fresh, corrupt: false, persistError: !ok, meterNotice: null }
       emit()
     },
     acknowledgeCorrupt: () => {
@@ -103,6 +140,11 @@ export function createDemoStore(now = Date.now()): DemoStoreApi {
     },
     clearPersistError: () => {
       snapshot = { ...snapshot, persistError: false }
+      emit()
+    },
+    dismissMeterNotice: () => {
+      if (!snapshot.meterNotice) return
+      snapshot = { ...snapshot, meterNotice: null }
       emit()
     },
   }

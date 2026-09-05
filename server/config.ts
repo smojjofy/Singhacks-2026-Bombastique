@@ -5,6 +5,7 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { readFileSync } from "node:fs"
 import { parseEnv } from "node:util"
+import crypto from "node:crypto"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(__dirname, "..")
@@ -62,6 +63,10 @@ export interface ServerConfig {
   buyerAddress: string
   buyerSecret: string
   sellerAddress: string
+  /** Receiver of x402/MPP micro-charges (the Yardle fee vault). */
+  feeAddress: string
+  /** Secret used to sign oracle vouchers (HMAC). Random per boot unless set. */
+  voucherSecret: string
   modelApiKey?: string
   modelBaseUrl?: string
   modelName?: string
@@ -72,6 +77,7 @@ export function readConfig(): ServerConfig {
   const buyerSecret = process.env.XRPL_TESTNET_BUYER_SECRET ?? ""
   const sellerAddress = process.env.XRPL_TESTNET_SELLER_ADDRESS ?? ""
   const buyerAddress = process.env.XRPL_TESTNET_BUYER_ADDRESS ?? ""
+  const feeAddress = process.env.XRPL_TESTNET_FEE_ADDRESS ?? ""
   const host = process.env.SERVER_HOST || "127.0.0.1"
   if (!["127.0.0.1", "localhost", "::1"].includes(host)) throw new Error("Server must bind to loopback")
   return {
@@ -81,6 +87,8 @@ export function readConfig(): ServerConfig {
     buyerSecret,
     buyerAddress,
     sellerAddress,
+    feeAddress,
+    voucherSecret: process.env.VOUCHER_SECRET ?? crypto.randomBytes(32).toString("hex"),
     modelApiKey: process.env.MODEL_API_KEY,
     modelBaseUrl: process.env.MODEL_BASE_URL,
     modelName: process.env.MODEL_NAME,
@@ -90,11 +98,13 @@ export function readConfig(): ServerConfig {
 /** Readiness without secrets. */
 export function readiness(config: ServerConfig): {
   accounts: boolean
+  fee: boolean
   model: boolean
   endpoint: string
 } {
   return {
     accounts: Boolean(config.buyerSecret && config.buyerAddress && config.sellerAddress),
+    fee: Boolean(config.feeAddress),
     model: Boolean(config.modelApiKey),
     endpoint: config.endpoint,
   }

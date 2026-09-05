@@ -3,15 +3,48 @@ import { JsonStore } from "../store"
 import { StubProvider } from "./provider"
 import { executeTool, type AgentContext } from "./tools"
 import { runAgent } from "./runtime"
+import { signVoucher } from "../m2m/voucher"
 import os from "node:os"
 import path from "node:path"
+
+const SECRET = "test-voucher-secret"
+const NOW = Date.now()
 
 function tmpStore(): JsonStore {
   return new JsonStore(path.join(os.tmpdir(), `yardle-agent-${Date.now()}-${Math.random().toString(36).slice(2)}.json`))
 }
 
 function ctx(store: JsonStore): AgentContext {
-  return { store, buyerAddress: "rBuyer", sellerAddress: "rSeller" }
+  return {
+    store,
+    buyerAddress: "rBuyer",
+    sellerAddress: "rSeller",
+    voucherSecret: SECRET,
+    obtainPricing: async (productId, condition) => {
+      if (productId !== "phone-iphone-13" || condition !== "Good") {
+        throw new Error("Only the iPhone 13 (Good) fixture is enabled for real Testnet payments.")
+      }
+      const v = signVoucher(SECRET, {
+        productId,
+        condition,
+        mmaDrops: 4_000_000,
+        minDrops: 2_800_000,
+        maxDrops: 5_200_000,
+        askingDrops: 3_500_000,
+        issuedAt: NOW,
+        exp: NOW + 600_000,
+        paidHash: "a".repeat(64),
+      })
+      return {
+        mmaDrops: v.mmaDrops,
+        minDrops: v.minDrops,
+        maxDrops: v.maxDrops,
+        askingDrops: v.askingDrops,
+        paidHash: v.paidHash,
+        voucher: v,
+      }
+    },
+  }
 }
 
 describe("agent tools", () => {
@@ -21,20 +54,45 @@ describe("agent tools", () => {
     expect(JSON.stringify(r)).toContain("phone-iphone-13")
   })
 
-  it("values the phone in test XRP drops", async () => {
+  it("values the phone through the paid oracle and returns a signed voucher", async () => {
     const r = await executeTool("get_valuation", { product_id: "phone-iphone-13", condition: "Good" }, ctx(tmpStore()))
     expect(r.ok).toBe(true)
     expect(r.mma_drops).toBe(4_000_000)
     expect(r.min_drops).toBe(2_800_000)
     expect(r.max_drops).toBe(5_200_000)
+    expect(r.oracle_paid).toBe(true)
+    expect(r.voucher).toBeTruthy()
   })
 
-  it("rejects unsupported products in get_valuation", async () => {
+  it("rejects unsupported products in the paid oracle", async () => {
     const r = await executeTool("get_valuation", { product_id: "camera-fuji-x100v", condition: "Good" }, ctx(tmpStore()))
     expect(r.ok).toBe(false)
+    expect(String(r.error)).toContain("enabled")
   })
 
-  it("prepares a valid proposal and rejects out-of-range ceilings", async () => {
+  it("prepares a valid proposal from a paid voucher and rejects out-of-range ceilings", async () => {
+    const store = tmpStore()
+    const c = ctx(store)
+    const priced = (await executeTool("get_valuation", { product_id: "phone-iphone-13", condition: "Good" }, c)) as Record<string, unknown>
+    const ok = await executeTool(
+      "prepare_payment",
+      { product_id: "phone-iphone-13", condition: "Good", ceiling_drops: 3_800_000, voucher: priced.voucher },
+      c,
+    )
+    expect(ok.ok).toBe(true)
+    expect(ok.orderId).toBeTruthy()
+    expect(ok.oracle_verified).toBe(true)
+    expect((await store.read()).orders).toHaveLength(1)
+
+    const bad = await executeTool(
+      "prepare_payment",
+      { product_id: "phone-iphone-13", condition: "Good", ceiling_drops: 9_000_000, voucher: priced.voucher },
+      c,
+    )
+    expect(bad.ok).toBe(false)
+  })
+
+  it("obtains pricing automatically when prepare_payment has no voucher", async () => {
     const store = tmpStore()
     const ok = await executeTool(
       "prepare_payment",
@@ -43,14 +101,6 @@ describe("agent tools", () => {
     )
     expect(ok.ok).toBe(true)
     expect(ok.orderId).toBeTruthy()
-    expect((await store.read()).orders).toHaveLength(1)
-
-    const bad = await executeTool(
-      "prepare_payment",
-      { product_id: "phone-iphone-13", condition: "Good", ceiling_drops: 9_000_000 },
-      ctx(store),
-    )
-    expect(bad.ok).toBe(false)
   })
 })
 

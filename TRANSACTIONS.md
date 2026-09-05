@@ -49,3 +49,25 @@ Session-cookie connect → `GET /api/orders` → `POST /api/prepare` → `POST /
 
 The buyer/seller accounts were created and funded with 100 test XRP each via the Testnet faucet; secrets live only in the gitignored `.env.local`. These are test-only funds with no real value.
 
+
+## x402 / MPP micro-payment evidence (2026-09-05, post-implementation)
+
+Fee vault account `rHTdr4ZCZ2xpP24RoeYj6FusMDHoDMTqag` (created + funded 100 test XRP
+this session; receive-only). All micro-payments are real validated XRPL Testnet Payments
+from the buyer account `rh7JiBgqruHNHoikJSSW1FYC3kq6sB5zhh`.
+
+| Purpose | Amount (drops) | Validated | Ledger | Tx hash (prefix) |
+| --- | ---: | --- | --- | --- |
+| x402 oracle fee (post-fix agent run; order `ord_mto33qk9_vn16gv`) | 600 | `tesSUCCESS` | 20499916 | `4681C0DD5E10…` |
+| x402 oracle fee ×6 (prepare rounds 1–6, each declined after) | 600 each | `tesSUCCESS` | ~2049992x | (on orders `ord_mto34y2k…`–`ord_mto35sf3…`, see `oraclePaidHash`) |
+| MPP meter overage (round 6 prepare, order `ord_mto35sf3_y5x78p`) | 400 | `tesSUCCESS` | 20499945 | `86BF61F632A1D94FD44BD2798D77221538206F321845170BCF673FB8E1F0009E` |
+| Two earlier oracle fees during the DeliverMax verification bug (see DEBUG) | 600 each | `tesSUCCESS` | ~2049989x | (orphaned; no order created) |
+
+Fee vault balance change: `100,000,000` → `100,005,800` drops (+5,800 = 600×9 + 400×1) —
+matches the ledger exactly.
+
+Live flow observed: agent request (Agnes) → `get_valuation` paid a 600-drop oracle fee →
+verified on-ledger → signed voucher → `prepare_payment` → order records `oraclePaidHash`.
+Velocity meter: rounds 1–5 `FREE` (`freeRemaining` 4→0), round 6 `METERED` (400 drops paid
+and recorded as `meterPaidHash` before the prepare proceeded); `GET /api/v1/meter` reported
+`count:6, freeRemaining:0`.

@@ -1,4 +1,5 @@
 import http from "node:http"
+import crypto from "node:crypto"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
@@ -11,6 +12,9 @@ import { prepareOrder } from "./payments/prepare"
 import { changeOrder, claimAuthorization, listOrders, unresolved } from "./payments/actions"
 import { runAgent } from "./agent/runtime"
 import { OpenAICompatibleProvider } from "./agent/provider"
+import { obtainPricing, verifyMicroPaymentByHash } from "./m2m/oracle"
+import { MppMeter } from "./m2m/meter"
+import { ORACLE_FEE_DROPS } from "./m2m/fees"
 
 loadEnv()
 const config = readConfig()
@@ -22,6 +26,18 @@ const model = config.modelApiKey && config.modelBaseUrl && config.modelName
   ? new OpenAICompatibleProvider({ apiKey: config.modelApiKey, baseUrl: config.modelBaseUrl, model: config.modelName }) : null
 const origins = new Set(["http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:4173", "http://127.0.0.1:4173"])
 const active = new Set<string>()
+
+// x402 paid-pricing oracle + MPP meter. Payer is the configured testnet buyer.
+const meter =
+  config.buyerSecret && config.feeAddress
+    ? new MppMeter({ client, wallet: Wallet.fromSeed(config.buyerSecret), feeAddress: config.feeAddress })
+    : null
+const oracleDeps = () => ({
+  client,
+  payerWallet: Wallet.fromSeed(config.buyerSecret),
+  feeAddress: config.feeAddress,
+  voucherSecret: config.voucherSecret,
+})
 
 function json(res: http.ServerResponse, status: number, body: unknown) {
   res.writeHead(status, { "Content-Type": "application/json", "Cache-Control": "no-store" })
@@ -124,6 +140,39 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (req.method === "GET" && p === "/api/health") return json(res, 200, {
     ok: true, ...readiness(config), model: !!model, networkReady: client.isConnected(), modelName: config.modelName,
   })
+  if (req.method === "POST" && p === "/api/v1/pricing-check") {
+    const b = await body(req)
+    const productId = String(b.productId ?? "")
+    const condition = String(b.condition ?? "Good")
+    const proof = (b.proof ?? undefined) as { challengeId?: string; txHash?: string } | undefined
+    if (!proof?.challengeId || !proof?.txHash) {
+      // x402 contract: 402 with a payment instruction.
+      const instruction = {
+        error: "Payment required",
+        feeDrops: ORACLE_FEE_DROPS,
+        receiver: config.feeAddress,
+        network: "xrpl-testnet",
+        challengeId: crypto.randomBytes(12).toString("hex"),
+        note: "Pay the fee from the demo buyer account with MemoData = challengeId, then retry with proof {challengeId, txHash}.",
+      }
+      return json(res, 402, instruction)
+    }
+    if (!meter) return json(res, 503, { error: "Fee vault not configured — run `npm run setup:testnet`" })
+    if (!client.isConnected()) return json(res, 503, { error: "Testnet network not ready" })
+    const ok = await verifyMicroPaymentByHash(client, {
+      hash: proof.txHash,
+      payer: config.buyerAddress,
+      receiver: config.feeAddress,
+      amountDrops: ORACLE_FEE_DROPS,
+      challengeId: proof.challengeId,
+    })
+    if (!ok) return json(res, 402, { error: "Fee payment could not be verified on-ledger" })
+    const pricing = await obtainPricing(oracleDeps(), productId, condition, Date.now(), {
+      skipPayment: true,
+      paidHash: proof.txHash,
+    })
+    return json(res, 200, pricing)
+  }
   if (!authorized(req)) return json(res, 401, { error: "Connect your demo session to view Testnet orders" })
   if (req.method === "GET" && p === "/api/accounts") {
     if (!client.isConnected()) return json(res, 503, { error: "Testnet network not ready" })
@@ -137,26 +186,74 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     })
   }
   if (req.method === "GET" && p === "/api/orders") return json(res, 200, (await listOrders(store)).map(publicOrder).reverse())
+  if (req.method === "GET" && p === "/api/v1/meter") {
+    if (!meter) return json(res, 503, { error: "Fee vault not configured — run `npm run setup:testnet`" })
+    return json(res, 200, { account: config.buyerAddress, ...meter.snapshot(config.buyerAddress) })
+  }
   if (req.method === "GET" && p.startsWith("/api/orders/")) {
     const o = (await listOrders(store)).find(x => x.id === p.slice("/api/orders/".length))
     return o ? json(res, 200, publicOrder(o)) : json(res, 404, { error: "Order not found" })
   }
   if (req.method === "POST" && p === "/api/prepare") {
     const b = await body(req)
-    const r = await prepareOrder(store, config.buyerAddress, config.sellerAddress, String(b.productId ?? ""), String(b.condition ?? "") as never, Number(b.ceilingDrops))
-    return r.ok ? json(res, 201, publicOrder(r.order!)) : json(res, 400, { error: r.error })
+    if (!meter) return json(res, 503, { error: "Testnet payer or fee vault not configured — run `npm run setup:testnet`" })
+    if (!client.isConnected()) return json(res, 503, { error: "Testnet network not ready" })
+    // MPP velocity meter: free tier or auto-settled real overage micro-payment.
+    const guard = await meter.guard(config.buyerAddress, "prepare")
+    // x402: buy pricing from the oracle (real fee) and get a signed voucher.
+    const productId = String(b.productId ?? "")
+    const condition = String(b.condition ?? "Good")
+    let pricing
+    try {
+      pricing = await obtainPricing(oracleDeps(), productId, condition)
+    } catch (e) {
+      return json(res, 400, { error: e instanceof Error ? e.message : "Paid pricing unavailable" })
+    }
+    const r = await prepareOrder(store, config.buyerAddress, config.sellerAddress, {
+      productId: pricing.productId,
+      condition: pricing.condition,
+      ceilingDrops: Number(b.ceilingDrops),
+      voucher: pricing.voucher,
+      voucherSecret: config.voucherSecret,
+    })
+    if (!r.ok) return json(res, 400, { error: r.error })
+    const order = r.order!
+    if (guard.overage) await patchOrder(order.id, o => { o.meterPaidHash = guard.overage!.txHash })
+    return json(res, 201, { ...publicOrder(order), meter: guard })
   }
   if (req.method === "POST" && p === "/api/agent/request") {
     if (!model) return json(res, 503, { error: "Agnes is not configured. Check the server-side env file." })
+    if (!meter) return json(res, 503, { error: "Testnet payer or fee vault not configured — run `npm run setup:testnet`" })
     const b = await body(req)
     const request = String(b.request ?? "").trim()
     if (!request || request.length > 4000) return json(res, 400, { error: "Enter a request of 1–4000 characters" })
     if ((await listOrders(store)).some(o => ["awaiting_authorization", "authorized", "submitting", "uncertain"].includes(o.paymentStatus))) {
       return json(res, 409, { error: "Resolve or decline your existing payment proposal first" })
     }
-    const r = await runAgent(request, { store, buyerAddress: config.buyerAddress, sellerAddress: config.sellerAddress }, model)
+    const guard = await meter.guard(config.buyerAddress, "agent")
+    // Cache paid pricing within one agent request so a voucher obtained by
+    // get_valuation is reused by prepare_payment instead of double-paying.
+    const pricingCache = new Map<string, Awaited<ReturnType<typeof obtainPricing>>>()
+    const r = await runAgent(
+      request,
+      {
+        store,
+        buyerAddress: config.buyerAddress,
+        sellerAddress: config.sellerAddress,
+        voucherSecret: config.voucherSecret,
+        obtainPricing: async (productId, condition) => {
+          const key = `${productId}|${condition}`
+          const cached = pricingCache.get(key)
+          if (cached) return cached
+          const p = await obtainPricing(oracleDeps(), productId, condition)
+          pricingCache.set(key, p)
+          return p
+        },
+      },
+      model,
+    )
     if (r.orderId) await patchOrder(r.orderId, o => { o.agentRequest = request; o.agentTrace = r.toolTrace })
-    return json(res, 200, r)
+    return json(res, 200, { ...r, meter: guard })
   }
   if (req.method === "POST" && p === "/api/authorize") {
     if (!client.isConnected()) return json(res, 503, { error: "Testnet network not ready" })

@@ -110,3 +110,54 @@ describe("demoStore persistence", () => {
     expect(b.getSnapshot().state.listings.length).toBeGreaterThan(0)
   })
 })
+
+describe("demoStore anti-bot velocity meter (simulation free tier)", () => {
+  const ids = ["phone-pixel-9", "vacuum-dyson", "phone-galaxy-s23", "scooter-xiaomi", "headphones-sony-xm5", "console-switch"]
+
+  it("blocks guarded submissions after the free allowance and clears on dismiss", () => {
+    let fakeNow = NOW
+    const store = createDemoStore(NOW, () => fakeNow)
+    // Guarded submissions are validated later by the reducer; velocity counts first.
+    for (let i = 0; i < 5; i++) {
+      store.dispatch({ type: "createListing", actorId: "seller-maya", productId: ids[i % ids.length], condition: "Good", amountCents: 40_000 })
+    }
+    expect(store.getSnapshot().meterNotice).toBeNull()
+
+    // 6th guarded submission within the window is blocked.
+    const before = store.getSnapshot().state.listings.length
+    store.dispatch({ type: "createListing", actorId: "seller-maya", productId: "vacuum-dyson", condition: "Fair", amountCents: 30_000 })
+    const snap = store.getSnapshot()
+    expect(snap.meterNotice).not.toBeNull()
+    expect(snap.meterNotice?.actorId).toBe("seller-maya")
+    expect(snap.state.listings.length).toBe(before) // no state change
+
+    // Non-guarded dispatch clears the stale notice.
+    store.dispatch({ type: "selectPersona", personaId: "buyer-alex" })
+    expect(store.getSnapshot().meterNotice).toBeNull()
+  })
+
+  it("lets a persona through again once the window has elapsed", () => {
+    let fakeNow = NOW
+    const store = createDemoStore(NOW, () => fakeNow)
+    for (let i = 0; i < 5; i++) {
+      store.dispatch({ type: "createListing", actorId: "seller-maya", productId: ids[i], condition: "Good", amountCents: 40_000 })
+    }
+    store.dispatch({ type: "createListing", actorId: "seller-maya", productId: "vacuum-dyson", condition: "Fair", amountCents: 30_000 })
+    expect(store.getSnapshot().meterNotice).not.toBeNull()
+
+    fakeNow += 61_000
+    store.dispatch({ type: "createListing", actorId: "seller-maya", productId: "vacuum-dyson", condition: "Fair", amountCents: 30_000 })
+    expect(store.getSnapshot().meterNotice).toBeNull()
+  })
+
+  it("meters each persona independently", () => {
+    let fakeNow = NOW
+    const store = createDemoStore(NOW, () => fakeNow)
+    for (let i = 0; i < 5; i++) {
+      store.dispatch({ type: "createListing", actorId: "seller-maya", productId: ids[i], condition: "Good", amountCents: 40_000 })
+    }
+    // buyer-lee is a different actor and still has a free allowance.
+    store.dispatch({ type: "submitIntent", actorId: "buyer-lee", source: "need", productId: "vacuum-dyson", condition: "Good", ceilingCents: 40_000 })
+    expect(store.getSnapshot().meterNotice).toBeNull()
+  })
+})

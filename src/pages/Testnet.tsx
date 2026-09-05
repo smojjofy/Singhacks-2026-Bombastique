@@ -111,6 +111,7 @@ export function TestnetPage() {
           setAgent(result); if (result.orderId) setSelected(result.orderId)
         })}>{busy ? "Working…" : "Ask the agent"}</button>
         {agent && <div className="reason"><b>{agent.status}</b> — {agent.message}<p style={{ overflowWrap: "anywhere" }}>{agent.toolTrace.join(" → ")}</p></div>}
+        <small className="form-span">Agent pricing lookups use the paid x402 pricing oracle (600-drop fee from the buyer account, on-ledger). Free velocity allowance: 5 guarded requests/minute per account; over-limit requests are metered (MPP, 400 drops each).</small>
         {hasPending && <p>Resolve or decline your current proposal before starting another request.</p>}
       </article>
       {!hasPending && <form className="form-grid" style={{ marginTop: 20 }} onSubmit={e => { e.preventDefault(); void action(async () => {
@@ -121,7 +122,7 @@ export function TestnetPage() {
       }) }}>
         <label className="field">Buyer maximum price (test XRP)<input value={ceiling} inputMode="decimal" onChange={e => setCeiling(e.target.value)} /></label>
         <button className="secondary" disabled={busy || parseXrp(ceiling) === null}>Prepare payment</button>
-        <small className="form-span">Manual alternative: iPhone 13 (Good), MMA 4 XRP, range 2.8–5.2 XRP, asking 3.5 XRP. This fixed Testnet fixture is separate from simulated inventory.</small>
+        <small className="form-span">Manual alternative: iPhone 13 (Good), MMA 4 XRP, range 2.8–5.2 XRP, asking 3.5 XRP. This fixed Testnet fixture is separate from simulated inventory. Preparing pays a 600-drop x402 pricing fee and meters over-limit requests at 400 drops (MPP).</small>
       </form>}
       {orders.length > 0 && <label className="field" style={{ marginTop: 24 }}>Order history
         <select value={order?.id ?? ""} onChange={e => setSelected(e.target.value)}>{orders.map(o => <option key={o.id} value={o.id}>{o.id} — {o.paymentStatus}{o.fulfilledAt ? " / received" : ""}</option>)}</select>

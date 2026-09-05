@@ -48,6 +48,10 @@ export interface TestnetOrder {
   fulfilledAt?: number
   agentRequest?: string
   agentTrace?: string[]
+  /** Hash of the paid x402 pricing fee that produced this order's voucher. */
+  oraclePaidHash?: string
+  /** Last MPP meter charge applied during this order's prepare (if any). */
+  meterPaidHash?: string
   timeline: TestnetOrderTimeline[]
 }
 

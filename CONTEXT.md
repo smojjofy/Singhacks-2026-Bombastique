@@ -296,3 +296,43 @@ Round-two Milestone 1 (repair ownership/persistence + money/schema types) is imp
 - Optional M6 (Starter Kit / x402 / MPP) is deferred; not required for the minimum real-transaction checklist.
 
 
+
+## 2026-09-05 — x402 paid pricing oracle + MPP metered velocity implemented (M6)
+
+Decision (via ask): free-tier + real overage meter; x402 = pricing fee + signed voucher;
+meter scope = agent lookups + sell/intent submits; documented local implementation (no
+resources.md spec in repo).
+
+Implemented:
+- `server/m2m/` — `oracle.ts` (x402: 402 instruction -> 600-drop real Testnet fee to the fee
+  vault, on-ledger verification, signed 10-min voucher), `voucher.ts` (HMAC), `meter.ts`
+  (MPP: 5 guarded requests/min/account free, overage auto-metered at 400 real drops),
+  `payer.ts`, `fees.ts` (policy shared with the sim via `src/domain/config.ts`).
+- Order prepares (`server/payments/prepare.ts`, agent `prepare_payment`, HTTP `/api/prepare`)
+  now require a verified voucher bound to product/condition; orders record `oraclePaidHash`
+  and `meterPaidHash`. New endpoint `POST /api/v1/pricing-check` returns 402 with a payment
+  instruction until a valid on-ledger proof is supplied; `GET /api/v1/meter` shows the meter.
+- Agent `get_valuation` buys pricing through the oracle; tool trace/order timeline expose it.
+- Simulation: `VelocityTracker` in `src/domain/velocity.ts`; the store blocks guarded
+  submissions (createListing/submitIntent/checkoutCart) beyond 5/min/persona with a dismissible
+  anti-bot notice (`meterNotice`) — free tier only, no fake charges.
+- Setup: `npm run setup:testnet` now also creates/funds a fee vault and writes
+  `XRPL_TESTNET_FEE_ADDRESS`; `.env.example` documents it and `VOUCHER_SECRET`.
+- Tests: 75 pass (added `server/m2m/m2m.test.ts`, sim velocity-meter tests; agent tests moved
+  to voucher-verified prepares). Docs updated: README (M2M section), BUILDER_FEEDBACK,
+  SUBMISSION, `_test.md` (G06/G07 + evidence rows).
+
+Note: the currently committed `.env.local` predates the fee vault — re-run
+`npm run setup:testnet` before a live x402/MPP rehearsal (creates + funds the fee vault).
+Micro-payment rehearsals are NOT yet run live (oracle fee 600 / meter 400 drops, real Testnet).
+
+## 2026-09-05 — live x402/MPP rehearsal passed (supersedes the "not yet run" note above)
+
+Ran a live micro-payment rehearsal on Testnet after fixing the verifier (rippled 3.x records
+XRP Payment amounts as `DeliverMax`, not `Amount`) and adding a per-agent-request pricing
+cache (a voucher from `get_valuation` is reused by `prepare_payment` instead of double-paying).
+Evidence in `TRANSACTIONS.md`: oracle fee 600 drops (ledger 20499916, tx 4681C0DD5E10…),
+MPP meter overage 400 drops (ledger 20499945, tx 86BF61F632A1…), fee vault `rHTdr4Z…` balance
++5,800 drops exactly (600×9 + 400×1). Velocity meter live: rounds 1–5 free, round 6 metered.
+Two earlier 600-drop oracle fees were orphaned during the DeliverMax bug (paid, then
+verification failed) — recorded in TRANSACTIONS.md; a receive-only fee vault cannot refund.

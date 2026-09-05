@@ -85,6 +85,8 @@ Run the rows in order within each group. Use fresh simulation orders/reset for a
 | R04 | No in-flight payment | Stop backend using its terminal; try preparing request; restart normally. | Clear service error; no fake paid status/tool result; normal recovery. | NOT RUN |
 | R05 | No in-flight payment | Use documented failure control or interrupt connectivity, then restore. | Clear model/network-unavailable state. Browser offline alone may not disconnect backend-to-XRPL; record what you interrupted. | NOT RUN |
 | R06 | Desktop/narrow window | Test around 390 px width, navigation, forms, authorization; Tab/Shift-Tab/Escape in a modal. | Readable amounts/actions; reachable navigation; focus contained/restored; Escape closes without payment. | NOT RUN |
+| G06 | Paid pricing oracle (x402) | Ask the agent for an iPhone 13 (Good) valuation/order; inspect order timeline and fee tx on the explorer. | Agent tool trace shows the paid lookup; the order records the oracle fee hash (600 drops) and the explorer entry is a validated Payment to the fee vault; prepare without a valid voucher is refused (ask the coding agent for the curl/402 check). | NOT RUN |
+| G07 | Velocity meter / anti-bot (MPP) | In the simulation, submit 5 guarded requests quickly for one persona, then a 6th. | Free-tier notice appears and the 6th guarded submission is blocked with an anti-bot message; resetting/advancing a minute lets it through. On Testnet, over-limit requests are metered for real 400-drop payments instead of blocked (coding agent runs the API check). | NOT RUN |
 
 For Testnet price boundaries, try 2.799999 / 2.800000 / 5.200000 / 5.200001 where six-decimal input is supported: reject / accept / accept / reject. Do not authorize those proposals. If input precision is intentionally narrower, record that and ask for automated one-drop boundary evidence.
 
@@ -98,6 +100,8 @@ These require controlled API/automated tests, not improvisation during recording
 | Altered actor, order, destination, amount, network | Server rejects unauthorized/tampered execution, regardless of hidden UI buttons. |
 | Duplicate API approval / cancel racing submit | Exactly one valid terminal outcome; no double spending or premature release. |
 | Two pending payments for same payer | No overspending or account-sequence collision. |
+| x402 pricing without a valid paid proof | HTTP 402 with a payment instruction; forged/old vouchers are refused; no pricing leak without payment. |
+| MPP meter overage | Over-limit guarded requests are charged exactly once (real 400-drop Payment), recorded, and allowed to proceed. |
 | Corrupt simulation storage in disposable profile | Missing persona/null intent/bad relationships trigger recovery, not a crash. Never edit live operation records. |
 | Persistence failure | Actionable failure; no untracked payment or false persistence claim. |
 
@@ -115,7 +119,7 @@ Rehearse first. Each successful Testnet take spends additional test XRP and has 
 | 2:35–3:30 | Authorize once; validated result; explorer and wallet | After validation only: “This payment is confirmed on XRPL. The transaction reference and wallet changes show the result.” Allow actual network time. |
 | 3:30–3:50 | Confirm item received | “This simulates the physical handoff. It changes delivery status without sending money again.” |
 | 3:50–4:40 | Accurate architecture and roadmap | Explain agent/tools, policy gate, signing service, XRPL and receipts. Separate implemented behavior from future escrow/disputes/richer valuation. |
-| 4:40–5:10 | Setup/evidence links | Show repository instructions, transaction evidence and actual integration/non-use statements. Do not claim Starter Kit/x402/MPP use unless implemented. |
+| 4:40–5:10 | Setup/evidence links | Show repository instructions, real transaction evidence, and the honest implemented/simulated table. x402 (paid pricing oracle) and MPP (metered velocity) are implemented on the Testnet path with real 600/400-drop micro-payments; the XRPL AI Starter Kit is not used. Do not claim Starter Kit use. |
 
 ## Evidence and recording gate
 
@@ -123,7 +127,7 @@ Rehearse first. Each successful Testnet take spends additional test XRP and has 
 |------------------------------------|------------------------------------|
 | Tested build and environment | Build ID, date/time, browser, README startup commands, passing automated results. |
 | Agent evidence | Actual request and tool events linked to run/order/operation IDs; not a fixture presented as live. |
-| Transaction evidence | Full real hash, explorer URL/network, accounts, amount, fee, validated result, ledger index/time. |
+| Transaction evidence | Full real hash, explorer URL/network, accounts, amount, fee, validated result, ledger index/time; separate entries for any x402/MPP micro-payments. |
 | Wallet comparison | Buyer/seller before and after; fee accounted for; receipt sends nothing further. |
 | Persistence | Same receipt survives refresh/restart and remains outside resettable simulation data. |
 | Recording | Video filename/take and relevant timestamps; readable UI/audio; no credentials exposed. |

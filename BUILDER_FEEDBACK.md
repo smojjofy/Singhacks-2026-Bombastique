@@ -41,6 +41,15 @@ Honest notes from building Yardle against `xrpl` 5.1.0 and the public Testnet.
 - **XRPL AI Starter Kit**: not consumed — our agent uses an OpenAI-compatible tool-calling
   loop directly. A starter kit that provided a typed tool/agent scaffold would have removed
   boilerplate.
-- **x402 / MPP**: not applicable to a direct-XRP `Payment`; we kept them out rather than use
-  them inappropriately. They become relevant for paid external data lookup and multi-party
-  settlement, which are future work.
+- **x402 (paid MMA-pricing oracle)**: implemented as a secondary M2M flow. A pricing lookup
+  returns HTTP 402 with a payment instruction; the paying machine (the agent, using the
+  configured Testnet buyer account) sends a real 600-drop Testnet payment to the fee vault,
+  and only then receives pricing plus a signed voucher. Prepare endpoints refuse vouchers
+  that fail signature/expiry/product binding.
+- **MPP (metered velocity/anti-bot)**: implemented. Each guarded request (order prepare,
+  agent request) gets a free allowance of 5/minute per account; over-limit requests are
+  auto-metered with a real 400-drop Testnet payment to the fee vault before they proceed.
+  The simulation mirrors the free-tier rule and blocks over-limit guarded submissions with
+  an explicit anti-bot notice.
+- These are a documented local implementation of the x402/MPP shapes (no official spec was
+  provided in `resources.md`, which is absent from the repo); labels and README state that.

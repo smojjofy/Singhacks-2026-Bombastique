@@ -30,6 +30,14 @@ export const NEED_WINDOW_DAYS = 90
 /** Authorization window for a prepared payment proposal (simulation). */
 export const AUTHORIZATION_WINDOW_MS = 5 * 60_000
 
+/**
+ * Simulation anti-bot velocity policy (mirrors the server MPP meter).
+ * Each persona gets this many guarded submissions (listings, intents,
+ * checkouts) per window before the free tier is exhausted.
+ */
+export const VELOCITY_WINDOW_MS = 60_000
+export const VELOCITY_FREE_LIMIT = 5
+
 /** Number of most-recent seeded sales used to compute the base MMA. */
 export const MMA_SAMPLE_COUNT = 10
 
